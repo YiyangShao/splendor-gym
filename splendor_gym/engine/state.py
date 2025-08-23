@@ -3,11 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import random
+import json
+import os
 
 # Token colors: 5 standard + 1 gold (wild)
 TOKEN_COLORS = ["white", "blue", "green", "red", "black", "gold"]
 STANDARD_COLORS = TOKEN_COLORS[:-1]
 COLOR_INDEX = {c: i for i, c in enumerate(TOKEN_COLORS)}
+
+# Mapping between human names and internal color names
+HUMAN_TO_INTERNAL = {
+	"diamond": "white",
+	"sapphire": "blue",
+	"emerald": "green",
+	"ruby": "red",
+	"onyx": "black",
+}
+INTERNAL_TO_HUMAN = {v: k for k, v in HUMAN_TO_INTERNAL.items()}
 
 # Splendor defaults for 2 players
 DEFAULT_BANK = {
@@ -86,37 +98,94 @@ class SplendorState:
 		)
 
 
-# Minimal bootstrap card/noble factories (to be replaced by JSON loading in rules)
-def generate_mock_decks(seed: int = 0) -> Tuple[Dict[int, List[Card]], Dict[int, List[Optional[Card]]]]:
-	random.seed(seed)
+# Data loading
+
+def _data_dir() -> str:
+	return os.path.join(os.path.dirname(__file__), "data")
+
+
+def _load_cards_from_json() -> Dict[int, List[Card]]:
+	path = os.path.join(_data_dir(), "cards.json")
+	if not os.path.exists(path):
+		raise FileNotFoundError(f"Missing cards.json at {path}")
+	with open(path, "r", encoding="utf-8") as f:
+		raw = json.load(f)
+	if not raw:
+		raise ValueError("cards.json is empty")
+	cards: Dict[int, List[Card]] = {1: [], 2: [], 3: []}
 	card_id = 0
-	decks: Dict[int, List[Card]] = {1: [], 2: [], 3: []}
-	board: Dict[int, List[Optional[Card]]] = {1: [None] * 4, 2: [None] * 4, 3: [None] * 4}
-	for tier in (1, 2, 3):
-		for _ in range(20):
-			color = random.choice(STANDARD_COLORS)
-			points = 0 if tier == 1 else (1 if tier == 2 else random.choice([2, 3, 4]))
-			cost = {c: random.randint(0, 4 if tier == 1 else 6) for c in STANDARD_COLORS}
-			cost[color] = max(0, cost[color] - (1 if tier == 1 else 2))
-			decks[tier].append(Card(id=card_id, tier=tier, color=color, points=points, cost=cost))
-			card_id += 1
-		random.shuffle(decks[tier])
-		for i in range(4):
-			board[tier][i] = decks[tier].pop() if decks[tier] else None
-	return decks, board
+	for obj in raw:
+		tier = int(obj["tier"])  # 1..3
+		if tier not in (1, 2, 3):
+			raise ValueError("Invalid tier in cards.json")
+		points = int(obj.get("points", 0))
+		bonus_human = obj.get("bonus")
+		if bonus_human is None:
+			raise ValueError("Card missing bonus color")
+		bonus_internal = HUMAN_TO_INTERNAL.get(bonus_human)
+		if bonus_internal not in STANDARD_COLORS:
+			raise ValueError(f"Invalid bonus color: {bonus_human}")
+		cost_h = obj.get("cost", {})
+		cost_internal: Dict[str, int] = {}
+		for hname, v in cost_h.items():
+			iname = HUMAN_TO_INTERNAL.get(hname)
+			if iname is None:
+				raise ValueError(f"Invalid cost color: {hname}")
+			cost_internal[iname] = int(v)
+		cards[tier].append(Card(id=card_id, tier=tier, color=bonus_internal, points=points, cost=cost_internal))
+		card_id += 1
+	# Basic validations
+	if len(cards[1]) == 0 or len(cards[2]) == 0 or len(cards[3]) == 0:
+		raise ValueError("cards.json missing tiers")
+	# Count validation: base game has 40/30/20 per tiers 1/2/3
+	if not (len(cards[1]) == 40 and len(cards[2]) == 30 and len(cards[3]) == 20):
+		raise ValueError("cards.json must contain 40/30/20 cards for tiers 1/2/3")
+	return cards
 
 
-def generate_mock_nobles(num: int = 3, start_id: int = 1000) -> List[Optional[Noble]]:
-	nobles: List[Optional[Noble]] = []
-	for i in range(num):
-		req = {c: 3 for c in random.sample(STANDARD_COLORS, 3)}
-		nobles.append(Noble(id=start_id + i, requirements=req))
+def _load_nobles_from_json() -> List[Noble]:
+	path = os.path.join(_data_dir(), "nobles.json")
+	if not os.path.exists(path):
+		raise FileNotFoundError(f"Missing nobles.json at {path}")
+	with open(path, "r", encoding="utf-8") as f:
+		raw = json.load(f)
+	if not raw:
+		raise ValueError("nobles.json is empty")
+	nobles: List[Noble] = []
+	nid = 1000
+	for obj in raw:
+		points = int(obj.get("points", 3))
+		req_h = obj.get("req", {})
+		if not req_h:
+			raise ValueError("Noble missing requirements")
+		req_internal: Dict[str, int] = {}
+		for hname, v in req_h.items():
+			iname = HUMAN_TO_INTERNAL.get(hname)
+			if iname is None:
+				raise ValueError(f"Invalid noble req color: {hname}")
+			req_internal[iname] = int(v)
+		nobles.append(Noble(id=nid, requirements=req_internal, points=points))
+		nid += 1
+	# Validate count: base game 10 nobles
+	if len(nobles) != 10:
+		raise ValueError("nobles.json must contain 10 nobles for base game")
 	return nobles
 
 
 def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
-	decks, board = generate_mock_decks(seed)
-	nobles = generate_mock_nobles(3)
+	random.seed(seed)
+	cards_by_tier = _load_cards_from_json()
+	nobles_list = _load_nobles_from_json()
+	# Build decks and board
+	decks: Dict[int, List[Card]] = {1: list(cards_by_tier[1]), 2: list(cards_by_tier[2]), 3: list(cards_by_tier[3])}
+	board: Dict[int, List[Optional[Card]]] = {1: [None] * 4, 2: [None] * 4, 3: [None] * 4}
+	for tier in (1, 2, 3):
+		random.shuffle(decks[tier])
+		for i in range(4):
+			board[tier][i] = decks[tier].pop() if decks[tier] else None
+	# Visible nobles count = players + 1, up to 5
+	visible_n = min(num_players + 1, len(nobles_list))
+	nobles_visible: List[Optional[Noble]] = nobles_list[:visible_n]
 	bank = [DEFAULT_BANK[c] for c in TOKEN_COLORS]
 	players = [PlayerState() for _ in range(num_players)]
 	return SplendorState(
@@ -125,7 +194,7 @@ def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
 		players=players,
 		board=board,
 		decks=decks,
-		nobles=nobles,
+		nobles=nobles_visible,
 		to_play=0,
 		turn_count=0,
 		game_over=False,

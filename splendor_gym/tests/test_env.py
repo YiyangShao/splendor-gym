@@ -2,13 +2,14 @@ import numpy as np
 import gymnasium as gym
 
 from splendor_gym.envs import SplendorEnv
-from splendor_gym.engine.rules import TOTAL_ACTIONS
+from splendor_gym.engine.encode import TOTAL_ACTIONS, OBSERVATION_DIM
 
 
 def test_reset_and_step_shapes():
 	env = SplendorEnv(num_players=2)
 	obs, info = env.reset(seed=123)
 	assert isinstance(obs, np.ndarray)
+	assert obs.shape == (OBSERVATION_DIM,)
 	assert "action_mask" in info
 	assert info["action_mask"].shape == (TOTAL_ACTIONS,)
 
@@ -17,6 +18,7 @@ def test_reset_and_step_shapes():
 	action = int(np.flatnonzero(mask)[0])
 	obs, reward, terminated, truncated, info = env.step(action)
 	assert isinstance(obs, np.ndarray)
+	assert obs.shape == (OBSERVATION_DIM,)
 	assert isinstance(reward, float)
 	assert isinstance(terminated, bool)
 	assert isinstance(truncated, bool)

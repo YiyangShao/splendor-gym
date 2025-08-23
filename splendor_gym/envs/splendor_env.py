@@ -7,7 +7,6 @@ from typing import Tuple, Dict, Any
 
 from ..engine import (
 	SplendorState,
-	PlayerState,
 	legal_moves,
 	apply_action,
 	is_terminal,
@@ -15,7 +14,7 @@ from ..engine import (
 	initial_state,
 )
 from ..engine.state import TOKEN_COLORS, STANDARD_COLORS
-from ..engine.rules import TOTAL_ACTIONS
+from ..engine.encode import TOTAL_ACTIONS, OBSERVATION_DIM, encode_observation
 
 
 class SplendorEnv(gym.Env):
@@ -29,64 +28,18 @@ class SplendorEnv(gym.Env):
 
 		self.action_space = spaces.Discrete(TOTAL_ACTIONS)
 		self.observation_space = spaces.Box(
-			low=0, high=30, shape=(self._obs_dim(),), dtype=np.int32
+			low=0, high=50, shape=(OBSERVATION_DIM,), dtype=np.int32
 		)
 
 		self.state: SplendorState | None = None
 		self.current_player: int = 0
-
-	def _obs_dim(self) -> int:
-		# bank 6 + current player tokens 6 + bonuses 5 + prestige 1 + opp tokens 6 + opp bonuses 5 + opp prestige 1
-		# board: 12 cards x (tier 1 + points 1 + color 1 + cost5) = 12 x 8 = 96
-		# nobles: 3 x (requirements5 + present1) = 18
-		# turn count 1 + to_play 1
-		return 6 + 6 + 5 + 1 + 6 + 5 + 1 + 96 + 18 + 2
-
-	def _encode(self, state: SplendorState) -> np.ndarray:
-		vec = []
-		# bank
-		vec.extend(state.bank)
-		# current player and a single opponent summary (2p assumption)
-		p = state.players[state.to_play]
-		op = state.players[1 - state.to_play] if state.num_players == 2 else state.players[(state.to_play + 1) % state.num_players]
-		vec.extend(p.tokens)
-		vec.extend(p.bonuses)
-		vec.append(p.prestige)
-		vec.extend(op.tokens)
-		vec.extend(op.bonuses)
-		vec.append(op.prestige)
-		# board 12 cards
-		for tier in (1, 2, 3):
-			for slot in range(4):
-				card = state.board[tier][slot]
-				if card is None:
-					vec.extend([0, 0, 0] + [0] * 5)
-				else:
-					vec.append(tier)
-					vec.append(card.points)
-					vec.append(STANDARD_COLORS.index(card.color) + 1)
-					for c in STANDARD_COLORS:
-						vec.append(card.cost.get(c, 0))
-		# nobles 3
-		for i in range(3):
-			noble = state.nobles[i] if i < len(state.nobles) else None
-			if noble is None:
-				vec.extend([0, 0, 0, 0, 0, 0])
-			else:
-				for c in STANDARD_COLORS:
-					vec.append(noble.requirements.get(c, 0))
-				vec.append(1)
-		# misc
-		vec.append(state.turn_count)
-		vec.append(state.to_play)
-		return np.array(vec, dtype=np.int32)
 
 	def reset(self, *, seed: int | None = None, options: Dict[str, Any] | None = None) -> Tuple[np.ndarray, Dict[str, Any]]:
 		if seed is not None:
 			self._rng = np.random.default_rng(seed)
 		self.state = initial_state(num_players=self.num_players, seed=int(self._rng.integers(0, 1e9)))
 		self.current_player = self.state.to_play
-		obs = self._encode(self.state)
+		obs = encode_observation(self.state)
 		mask = np.array(legal_moves(self.state), dtype=np.int8)
 		info = {"action_mask": mask, "to_play": self.state.to_play}
 		return obs, info
@@ -100,10 +53,10 @@ class SplendorEnv(gym.Env):
 			terminated = False
 			truncated = False
 			info = {"illegal_action": True, "action_mask": np.array(mask, dtype=np.int8), "to_play": self.state.to_play}
-			return self._encode(self.state), reward, terminated, truncated, info
+			return encode_observation(self.state), reward, terminated, truncated, info
 
 		self.state = apply_action(self.state, action)
-		obs = self._encode(self.state)
+		obs = encode_observation(self.state)
 		terminated = is_terminal(self.state)
 		reward = 0.0
 		if terminated:
