@@ -49,6 +49,18 @@ class SplendorEnv(gym.Env):
 	def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
 		assert self.state is not None, "Call reset() first"
 		mask = legal_moves(self.state)
+		# No-legal-move immediate draw
+		if np.sum(mask) == 0:
+			self.state.game_over = True
+			self.state.winner_index = None
+			# Set to_play to 0 so is_terminal(state) becomes True
+			self.state.to_play = 0
+			obs = encode_observation(self.state)
+			terminated = True
+			truncated = False
+			reward = 0.0
+			info = {"action_mask": np.zeros(self.action_space.n, dtype=np.int8), "to_play": self.state.to_play, "draw": True}
+			return obs, float(reward), bool(terminated), bool(truncated), info
 		if not (0 <= action < self.action_space.n and mask[action] == 1):
 			# Illegal action: treat as no-op with small penalty to discourage
 			reward = -0.01
