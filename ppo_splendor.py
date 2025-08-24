@@ -71,6 +71,7 @@ def main():
 	parser.add_argument("--clip-coef", type=float, default=0.2)
 	parser.add_argument("--update-epochs", type=int, default=4)
 	parser.add_argument("--minibatch-size", type=int, default=256)
+	parser.add_argument("--save-path", type=str, default="runs/ppo_splendor.pt")
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -191,6 +192,11 @@ def main():
 
 		if (update + 1) % 10 == 0:
 			print(f"update={update+1}/{num_updates}")
+
+	# Save checkpoint
+	os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
+	torch.save(agent.state_dict(), args.save_path)
+	print(f"Saved model to {args.save_path}")
 
 
 if __name__ == "__main__":
