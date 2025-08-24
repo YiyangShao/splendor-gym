@@ -22,9 +22,10 @@ class SplendorEnv(gym.Env):
 
 	def __init__(self, num_players: int = 2, render_mode: str | None = None, seed: int | None = None):
 		super().__init__()
+		if num_players != 2:
+			raise NotImplementedError("Current env supports 2 players only.")
 		self.num_players = num_players
 		self.render_mode = render_mode
-		self._rng = np.random.default_rng(seed)
 
 		self.action_space = spaces.Discrete(TOTAL_ACTIONS)
 		self.observation_space = spaces.Box(
@@ -35,9 +36,10 @@ class SplendorEnv(gym.Env):
 		self.current_player: int = 0
 
 	def reset(self, *, seed: int | None = None, options: Dict[str, Any] | None = None) -> Tuple[np.ndarray, Dict[str, Any]]:
-		if seed is not None:
-			self._rng = np.random.default_rng(seed)
-		self.state = initial_state(num_players=self.num_players, seed=int(self._rng.integers(0, 1e9)))
+		super().reset(seed=seed)
+		# Gymnasium provides self.np_random (Generator); derive a deterministic engine seed
+		engine_seed = int(self.np_random.integers(0, 2**31 - 1))  # type: ignore[attr-defined]
+		self.state = initial_state(num_players=self.num_players, seed=engine_seed)
 		self.current_player = self.state.to_play
 		obs = encode_observation(self.state)
 		mask = np.array(legal_moves(self.state), dtype=np.int8)
@@ -79,7 +81,7 @@ class SplendorEnv(gym.Env):
 		p = self.state.players[self.state.to_play]
 		print(f"Turn {self.state.turn_count} — Player {self.state.to_play}")
 		print(f"Bank: {dict(zip(TOKEN_COLORS, self.state.bank))}")
-		print(f"You: tokens={dict(zip(TOKEN_COLORS, p.tokens))} bonuses={dict(zip(STANDARD_COLORS, p.bonuses))} pp={p.prestige}")
+		print(f"You: tokens={dict(zip(TOKEN_COLORS, p.tokens))} bonuses={dict(zip(STANDARD_COLORS, p.bonuses))} pp={p.prestige}")  # noqa: E501
 
 
 def make(num_players: int = 2, render_mode: str | None = None, seed: int | None = None) -> SplendorEnv:

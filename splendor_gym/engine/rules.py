@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Optional, Dict
+import random
 
 from .state import (
 	SplendorState,
@@ -103,7 +104,8 @@ def _pay_for_card(player: PlayerState, bank: List[int], card: Card) -> None:
 	bank[COLOR_INDEX["gold"]] += gold_spent
 
 	# Gain bonus and points
-	player.bonuses[STANDARD_COLORS.index(card.color)] += 1
+	from .state import STANDARD_COLOR_INDEX
+	player.bonuses[STANDARD_COLOR_INDEX[card.color]] += 1
 	player.prestige += card.points
 
 
@@ -134,24 +136,38 @@ def _grant_noble_if_applicable(player: PlayerState, nobles: List[Optional[Noble]
 
 def auto_return_tokens(player: PlayerState, k: int, state: SplendorState) -> Dict[str, int]:
 	"""
-	Return exactly k tokens. Greedy: drop colors with largest counts first; drop gold last.
-	Returns a dict color->count removed.
+	Return exactly k tokens, selecting uniformly at random among non-gold colors the player holds.
+	Gold is not returned unless unavoidable to satisfy the 10-token limit.
+	Deterministic per-state using a local RNG seeded from state fields.
 	"""
 	removed: Dict[str, int] = {c: 0 for c in STANDARD_COLORS + ["gold"]}
 	if k <= 0:
 		return removed
-	# Indices order: prioritize non-gold from highest to lowest counts, gold last
-	counts = [(i, player.tokens[i]) for i in range(5)]
-	counts.sort(key=lambda x: x[1], reverse=True)
-	indices = [i for i, _ in counts] + [COLOR_INDEX["gold"]]
+	# Build deterministic RNG from state snapshot
+	seed = (
+		(state.turn_count * 1315423911)
+		^ (state.to_play * 2654435761)
+		^ (sum(player.tokens) * 97531)
+		^ (sum(state.bank) * 31337)
+	)
+	rng = random.Random(seed)
 	remaining = k
-	for i in indices:
-		if remaining == 0:
+	# Return from non-gold only
+	while remaining > 0:
+		choices = [i for i in range(5) if player.tokens[i] > 0]
+		if not choices:
 			break
-		give = min(remaining, player.tokens[i])
-		player.tokens[i] -= give
-		state.bank[i] += give
-		removed[STANDARD_COLORS[i] if i < 5 else "gold"] = give
+		idx = rng.choice(choices)
+		player.tokens[idx] -= 1
+		state.bank[idx] += 1
+		removed[STANDARD_COLORS[idx]] += 1
+		remaining -= 1
+	# If still over and no non-gold left, return gold as last resort
+	if remaining > 0 and player.tokens[COLOR_INDEX["gold"]] > 0:
+		give = min(remaining, player.tokens[COLOR_INDEX["gold"]])
+		player.tokens[COLOR_INDEX["gold"]] -= give
+		state.bank[COLOR_INDEX["gold"]] += give
+		removed["gold"] += give
 		remaining -= give
 	return removed
 

@@ -10,6 +10,7 @@ import os
 TOKEN_COLORS = ["white", "blue", "green", "red", "black", "gold"]
 STANDARD_COLORS = TOKEN_COLORS[:-1]
 COLOR_INDEX = {c: i for i, c in enumerate(TOKEN_COLORS)}
+STANDARD_COLOR_INDEX = {c: i for i, c in enumerate(STANDARD_COLORS)}
 
 # Mapping between human names and internal color names
 HUMAN_TO_INTERNAL = {
@@ -173,17 +174,18 @@ def _load_nobles_from_json() -> List[Noble]:
 
 
 def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
-	random.seed(seed)
+	local_rng = random.Random(seed)
 	cards_by_tier = _load_cards_from_json()
 	nobles_list = _load_nobles_from_json()
 	# Build decks and board
 	decks: Dict[int, List[Card]] = {1: list(cards_by_tier[1]), 2: list(cards_by_tier[2]), 3: list(cards_by_tier[3])}
 	board: Dict[int, List[Optional[Card]]] = {1: [None] * 4, 2: [None] * 4, 3: [None] * 4}
 	for tier in (1, 2, 3):
-		random.shuffle(decks[tier])
+		local_rng.shuffle(decks[tier])
 		for i in range(4):
 			board[tier][i] = decks[tier].pop() if decks[tier] else None
 	# Visible nobles count = players + 1, up to 5
+	local_rng.shuffle(nobles_list)
 	visible_n = min(num_players + 1, len(nobles_list))
 	nobles_visible: List[Optional[Noble]] = nobles_list[:visible_n]
 	bank = [DEFAULT_BANK[c] for c in TOKEN_COLORS]
