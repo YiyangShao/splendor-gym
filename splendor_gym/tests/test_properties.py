@@ -1,5 +1,6 @@
 import numpy as np
 from gymnasium.utils.env_checker import check_env
+import warnings
 
 from splendor_gym.envs import SplendorEnv
 from splendor_gym.engine import initial_state, legal_moves, apply_action
@@ -13,8 +14,10 @@ def scripted_policy(mask):
 
 
 def test_env_api_ok():
-	env = SplendorEnv(num_players=2, seed=123)
-	check_env(env, warn=True)
+	with warnings.catch_warnings():
+		warnings.simplefilter("ignore", category=UserWarning)
+		env = SplendorEnv(num_players=2, seed=123)
+		check_env(env)
 
 
 def test_deterministic_reset_and_first_actions():

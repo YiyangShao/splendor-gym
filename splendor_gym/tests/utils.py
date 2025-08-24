@@ -16,6 +16,12 @@ def mask_from_state(env):
 	return np.array(legal_moves(env.state), dtype=np.int8)
 
 
+def get_mask(info):
+	m = info.get("action_mask", None)
+	assert m is not None, "info must contain 'action_mask'"
+	return np.asarray(m, dtype=np.int8)
+
+
 def set_bank(env, **kw):
 	for hname, v in kw.items():
 		iname = H2I.get(hname, hname)

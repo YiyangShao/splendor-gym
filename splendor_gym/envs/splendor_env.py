@@ -18,7 +18,7 @@ from ..engine.encode import TOTAL_ACTIONS, OBSERVATION_DIM, encode_observation
 
 
 class SplendorEnv(gym.Env):
-	metadata = {"render.modes": ["human", "ansi"], "name": "Splendor-v0"}
+	metadata = {"render_modes": ["human"], "name": "Splendor-v0"}
 
 	def __init__(self, num_players: int = 2, render_mode: str | None = None, seed: int | None = None):
 		super().__init__()
@@ -37,7 +37,6 @@ class SplendorEnv(gym.Env):
 
 	def reset(self, *, seed: int | None = None, options: Dict[str, Any] | None = None) -> Tuple[np.ndarray, Dict[str, Any]]:
 		super().reset(seed=seed)
-		# Gymnasium provides self.np_random (Generator); derive a deterministic engine seed
 		engine_seed = int(self.np_random.integers(0, 2**31 - 1))  # type: ignore[attr-defined]
 		self.state = initial_state(num_players=self.num_players, seed=engine_seed)
 		self.current_player = self.state.to_play
@@ -48,26 +47,20 @@ class SplendorEnv(gym.Env):
 
 	def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
 		assert self.state is not None, "Call reset() first"
+		if is_terminal(self.state):
+			raise RuntimeError("Cannot call step() after episode termination. Call reset().")
 		mask = legal_moves(self.state)
-		# No-legal-move immediate draw
 		if np.sum(mask) == 0:
 			self.state.game_over = True
 			self.state.winner_index = None
-			# Set to_play to 0 so is_terminal(state) becomes True
 			self.state.to_play = 0
 			obs = encode_observation(self.state)
-			terminated = True
-			truncated = False
-			reward = 0.0
-			info = {"action_mask": np.zeros(self.action_space.n, dtype=np.int8), "to_play": self.state.to_play, "draw": True}
-			return obs, float(reward), bool(terminated), bool(truncated), info
-		if not (0 <= action < self.action_space.n and mask[action] == 1):
-			# Illegal action: treat as no-op with small penalty to discourage
-			reward = -0.01
-			terminated = False
-			truncated = False
-			info = {"illegal_action": True, "action_mask": np.array(mask, dtype=np.int8), "to_play": self.state.to_play}
-			return encode_observation(self.state), reward, terminated, truncated, info
+			return obs, 0.0, True, False, {"action_mask": np.zeros(self.action_space.n, dtype=np.int8), "to_play": self.state.to_play, "draw": True}
+		if not (0 <= action < self.action_space.n):
+			raise ValueError("Action out of bounds for action_space")
+		if mask[action] != 1:
+			obs = encode_observation(self.state)
+			return obs, -0.01, False, False, {"illegal_action": True, "action_mask": np.array(mask, dtype=np.int8), "to_play": self.state.to_play}
 
 		self.state = apply_action(self.state, action)
 		obs = encode_observation(self.state)
@@ -75,19 +68,12 @@ class SplendorEnv(gym.Env):
 		reward = 0.0
 		if terminated:
 			w = winner(self.state)
-			if w is None:
-				reward = 0.0
-			elif w == self.current_player:
-				reward = 1.0
-			else:
-				reward = -1.0
-		truncated = False
+			reward = 0.0 if w is None else (1.0 if w == self.current_player else -1.0)
 		mask = np.array(legal_moves(self.state), dtype=np.int8) if not terminated else np.zeros(self.action_space.n, dtype=np.int8)
-		info = {"action_mask": mask, "to_play": self.state.to_play}
-		return obs, float(reward), bool(terminated), bool(truncated), info
+		return obs, float(reward), bool(terminated), False, {"action_mask": mask, "to_play": self.state.to_play}
 
 	def render(self):
-		if self.render_mode not in ("human", "ansi"):
+		if self.render_mode not in ("human", None):
 			return
 		assert self.state is not None
 		p = self.state.players[self.state.to_play]
