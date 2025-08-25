@@ -3,9 +3,10 @@ import numpy as np
 import torch
 
 from splendor_gym.envs import SplendorEnv
-from splendor_gym.wrappers.selfplay import SelfPlayWrapper, random_opponent
+from splendor_gym.wrappers.selfplay import SelfPlayWrapper
 from splendor_gym.engine.encode import OBSERVATION_DIM, TOTAL_ACTIONS
 from ppo_splendor import ActorCritic, masked_categorical
+from splendor_gym.strategies.noble_strategy import noble_policy
 
 
 def load_agent(path: str, device: str = "cpu"):
@@ -27,42 +28,32 @@ def ppo_policy(agent, device="cpu"):
 	return _policy
 
 
-def eval_games(num_games: int, model_path: str | None):
-	wins = 0
-	draws = 0
-	losses = 0
+def noble_opponent(obs, info):
+	return int(noble_policy(obs, info))
+
+
+def eval_games(num_games: int, model_path: str):
+	wins = draws = losses = 0
 	turns = []
-	if model_path is None:
-		# actor that picks first legal
-		def first_legal(obs, info):
-			legal = np.flatnonzero(info["action_mask"])
-			return int(legal[0]) if len(legal) else 0
-		policy = first_legal
-	else:
-		agent = load_agent(model_path)
-		policy = ppo_policy(agent)
 	for g in range(num_games):
 		env = SplendorEnv(num_players=2)
-		env = SelfPlayWrapper(env, opponent_policy=random_opponent)
-		obs, info = env.reset(seed=1000 + g)
+		env = SelfPlayWrapper(env, opponent_policy=noble_opponent)
+		obs, info = env.reset(seed=2000 + g)
+		agent = load_agent(model_path)
+		policy = ppo_policy(agent)
 		term = False
-		reward = 0.0
-		while not term:
+		while True:
 			a = policy(obs, info)
-			obs, reward, term, trunc, info = env.step(a)
+			obs, r, term, trunc, info = env.step(a)
 			if term or trunc:
+				if r > 0: wins += 1
+				elif r < 0: losses += 1
+				else: draws += 1
 				break
-		# collect turns from base env
 		base = env.env
 		turns.append(base.state.turn_count / 2.0)
-		if reward > 0:
-			wins += 1
-		elif reward < 0:
-			losses += 1
-		else:
-			draws += 1
 	avg_turns = float(np.mean(turns)) if turns else 0.0
-	print(f"vs Random — games={num_games} win={wins} draw={draws} loss={losses} winrate={wins/num_games:.2%} avg_turns={avg_turns:.2f}")
+	print(f"vs NobleStrategy — games={num_games} win={wins} draw={draws} loss={losses} winrate={wins/num_games:.2%} avg_turns={avg_turns:.2f}")
 
 
 def main():
@@ -70,7 +61,7 @@ def main():
 	parser.add_argument("--games", type=int, default=200)
 	parser.add_argument("--model", type=str, default="runs/ppo_splendor.pt")
 	args = parser.parse_args()
-	eval_games(args.games, args.model if args.model else None)
+	eval_games(args.games, args.model)
 
 
 if __name__ == "__main__":

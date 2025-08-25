@@ -9,6 +9,10 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from splendor_gym.envs import SplendorEnv
 from splendor_gym.wrappers.selfplay import SelfPlayWrapper, random_opponent
@@ -18,6 +22,8 @@ from splendor_gym.scripts.eval_suite import (
 	model_greedy_policy_from,
 	eval_vs_opponent,
 	greedy_opponent_v1,
+	greedy_opponent_v2_factory,
+	basic_priority_opponent,
 )
 
 
@@ -122,6 +128,19 @@ def main():
 	num_updates = args.total_timesteps // (num_envs * num_steps)
 	global_step = 0
 	best_wr_greedy = -1.0
+	checkpoint_pool = []
+	# Histories for plotting
+	hist_steps: list[int] = []
+	hist_wr_rand: list[float] = []
+	hist_wr_greedy1: list[float] = []
+	hist_wr_basic: list[float] = []
+	hist_turns_rand: list[float] = []
+	hist_turns_greedy1: list[float] = []
+	hist_turns_basic: list[float] = []
+	hist_lr: list[float] = []
+	hist_pol_loss: list[float] = []
+	hist_val_loss: list[float] = []
+	hist_entropy: list[float] = []
 
 	for update in range(num_updates):
 		# LR annealing
@@ -217,6 +236,12 @@ def main():
 				nn.utils.clip_grad_norm_(agent.parameters(), 0.5)
 				optimizer.step()
 
+		# Record loss/lr histories once per update (last minibatch values)
+		hist_lr.append(optimizer.param_groups[0]["lr"])
+		hist_pol_loss.append(policy_loss.item())
+		hist_val_loss.append(value_loss.item())
+		hist_entropy.append((-entropy_loss).item())
+
 		# Logging
 		if writer is not None and (update + 1) % 1 == 0:
 			writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
@@ -228,20 +253,85 @@ def main():
 		if (update + 1) % args.eval_every_updates == 0:
 			policy_eval = model_greedy_policy_from(agent, device=device)
 			res_rand = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update)
-			res_greedy = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+1)
+			res_greedy1 = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+1)
+			res_basic = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+2)
+			# Update histories
+			hist_steps.append(global_step)
+			hist_wr_rand.append(res_rand["win_rate"])
+			hist_wr_greedy1.append(res_greedy1["win_rate"])
+			hist_wr_basic.append(res_basic["win_rate"])
+			hist_turns_rand.append(res_rand["avg_turns"])
+			hist_turns_greedy1.append(res_greedy1["avg_turns"])
+			hist_turns_basic.append(res_basic["avg_turns"])
+			# Log
 			if writer is not None:
 				writer.add_scalar("eval/win_rate_random", res_rand["win_rate"], global_step)
-				writer.add_scalar("eval/win_rate_greedy_v1", res_greedy["win_rate"], global_step)
-				writer.add_scalar("eval/draw_rate_random", res_rand["draws"] / res_rand["n"], global_step)
-				writer.add_scalar("eval/avg_turns", res_greedy["avg_turns"], global_step)
-				writer.add_scalar("eval/avg_prestige", res_greedy["avg_prestige"], global_step)
+				writer.add_scalar("eval/win_rate_random_ci95", res_rand["win_rate_ci95"], global_step)
+				writer.add_scalar("eval/win_rate_greedy_v1", res_greedy1["win_rate"], global_step)
+				writer.add_scalar("eval/win_rate_greedy_v1_ci95", res_greedy1["win_rate_ci95"], global_step)
+				writer.add_scalar("eval/win_rate_basic_priority", res_basic["win_rate"], global_step)
+				writer.add_scalar("eval/win_rate_basic_priority_ci95", res_basic["win_rate_ci95"], global_step)
+				writer.add_scalar("eval/draw_rate_random", res_rand["draws"] / max(1, res_rand["n"]), global_step)
+				writer.add_scalar("eval/avg_turns_greedy_v1", res_greedy1["avg_turns"], global_step)
+				writer.add_scalar("eval/avg_turns_random", res_rand["avg_turns"], global_step)
+				writer.add_scalar("eval/avg_turns_basic_priority", res_basic["avg_turns"], global_step)
+				writer.add_scalar("eval/avg_prestige", res_greedy1["avg_prestige"], global_step)
+				# Plot and log figures
+				try:
+					# Combined summary figure with subplots (overwrite single file)
+					fig, axes = plt.subplots(2, 2, figsize=(10, 7))
+					# Win rates
+					ax = axes[0,0]
+					ax.plot(hist_steps, hist_wr_rand, label="random")
+					ax.plot(hist_steps, hist_wr_greedy1, label="greedy_v1")
+					ax.plot(hist_steps, hist_wr_basic, label="basic_priority")
+					ax.set_ylim(0, 1.0)
+					ax.set_title("Win Rates")
+					ax.set_xlabel("steps")
+					ax.set_ylabel("win rate")
+					ax.legend()
+					# Avg turns
+					ax = axes[0,1]
+					ax.plot(hist_steps, hist_turns_rand, label="random")
+					ax.plot(hist_steps, hist_turns_greedy1, label="greedy_v1")
+					ax.plot(hist_steps, hist_turns_basic, label="basic_priority")
+					ax.set_title("Avg Turns (pair-moves)")
+					ax.set_xlabel("steps")
+					ax.set_ylabel("turns")
+					ax.legend()
+					# Losses
+					ax = axes[1,0]
+					x_loss = list(range(len(hist_pol_loss)))
+					ax.plot(x_loss, hist_pol_loss, label="policy")
+					ax.plot(x_loss, hist_val_loss, label="value")
+					ax.plot(x_loss, hist_entropy, label="entropy")
+					ax.set_title("Losses / Entropy")
+					ax.set_xlabel("updates")
+					ax.legend()
+					# Learning rate
+					ax = axes[1,1]
+					x_lr = list(range(len(hist_lr)))
+					ax.plot(x_lr, hist_lr, label="lr")
+					ax.set_title("Learning Rate")
+					ax.set_xlabel("updates")
+					# Timestamp
+					fig.suptitle(f"Summary @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+					fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+					writer.add_figure("eval/summary", fig, global_step)
+					# Overwrite single plot
+					out_path = os.path.join(args.log_dir, "summary.png")
+					fig.savefig(out_path)
+					plt.close(fig)
+				except Exception as e:
+					print(f"[warn] plotting failed: {e}")
 			# Best checkpoint gating
-			if res_greedy["win_rate"] > best_wr_greedy:
-				best_wr_greedy = res_greedy["win_rate"]
+			if res_greedy1["win_rate"] > best_wr_greedy:
+				best_wr_greedy = res_greedy1["win_rate"]
 				best_path = os.path.join(os.path.dirname(args.save_path), "ppo_splendor_best.pt")
 				os.makedirs(os.path.dirname(best_path), exist_ok=True)
 				torch.save(agent.state_dict(), best_path)
 				print(f"[eval] new best vs greedy_v1: {best_wr_greedy:.3f} saved {best_path}")
+				checkpoint_pool.append(best_path)
 
 		if (update + 1) % 10 == 0:
 			print(f"update={update+1}/{num_updates}")

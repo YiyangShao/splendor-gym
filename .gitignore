@@ -52,3 +52,11 @@ ENV/
 # OS files
 .DS_Store
 Thumbs.db 
+
+# Training outputs
+runs/
+*.png
+*.svg
+*.pdf
+# TensorBoard
+**/events.out.tfevents.* 
