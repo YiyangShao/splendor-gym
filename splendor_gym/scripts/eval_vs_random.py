@@ -10,7 +10,7 @@ from ppo_splendor import ActorCritic, masked_categorical
 
 def load_agent(path: str, device: str = "cpu"):
 	agent = ActorCritic(OBSERVATION_DIM, TOTAL_ACTIONS)
-	agent.load_state_dict(torch.load(path, map_location=device))
+	agent.load_state_dict(torch.load(path, map_location=device, weights_only=True))
 	agent.eval()
 	return agent.to(device)
 

@@ -82,6 +82,7 @@ class SplendorState:
 	turn_count: int = 0
 	game_over: bool = False
 	winner_index: Optional[int] = None
+	turn_limit_reached: bool = False
 
 	def copy(self) -> "SplendorState":
 		# shallow copy is sufficient for our immutable Card/Noble objects, deep-copy lists
@@ -96,6 +97,7 @@ class SplendorState:
 			turn_count=self.turn_count,
 			game_over=self.game_over,
 			winner_index=self.winner_index,
+			turn_limit_reached=self.turn_limit_reached,
 		)
 
 
@@ -201,4 +203,5 @@ def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
 		turn_count=0,
 		game_over=False,
 		winner_index=None,
+		turn_limit_reached=False,
 	) 

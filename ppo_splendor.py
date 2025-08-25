@@ -136,9 +136,11 @@ def main():
 	hist_wr_rand: list[float] = []
 	hist_wr_greedy1: list[float] = []
 	hist_wr_basic: list[float] = []
+	hist_wr_self: list[float] = []
 	hist_turns_rand: list[float] = []
 	hist_turns_greedy1: list[float] = []
 	hist_turns_basic: list[float] = []
+	hist_turns_self: list[float] = []
 	hist_lr: list[float] = []
 	hist_pol_loss: list[float] = []
 	hist_val_loss: list[float] = []
@@ -244,6 +246,14 @@ def main():
 		hist_val_loss.append(value_loss.item())
 		hist_entropy.append((-entropy_loss).item())
 
+		# Save checkpoints each update: overwrite latest and run-timestamped
+		latest_path = os.path.join(args.log_dir, "ppo_splendor_latest.pt")
+		ts_dir = os.path.join(args.log_dir, "checkpoints")
+		os.makedirs(ts_dir, exist_ok=True)
+		ts_path = os.path.join(ts_dir, f"ppo_splendor_{run_start_ts}.pt")
+		torch.save(agent.state_dict(), latest_path)
+		torch.save(agent.state_dict(), ts_path)
+
 		# Logging
 		if writer is not None and (update + 1) % 1 == 0:
 			writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
@@ -258,14 +268,19 @@ def main():
 			res_rand = eval_vs_opponent(lambda: make_selfplay_env_with(random_opponent, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update)
 			res_greedy1 = eval_vs_opponent(lambda: make_selfplay_env_with(greedy_opponent_v1, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+1)
 			res_basic = eval_vs_opponent(lambda: make_selfplay_env_with(basic_priority_opponent, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+2)
+			# Self-play (model vs model)
+			opp_self = model_greedy_policy_from(agent, device=device)
+			res_self = eval_vs_opponent(lambda: make_selfplay_env_with(opp_self, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+3)
 			# Update histories
 			hist_steps.append(global_step)
 			hist_wr_rand.append(res_rand["win_rate"])
 			hist_wr_greedy1.append(res_greedy1["win_rate"])
 			hist_wr_basic.append(res_basic["win_rate"])
+			hist_wr_self.append(res_self["win_rate"])
 			hist_turns_rand.append(res_rand["avg_turns"])
 			hist_turns_greedy1.append(res_greedy1["avg_turns"])
 			hist_turns_basic.append(res_basic["avg_turns"])
+			hist_turns_self.append(res_self["avg_turns"])
 			# Log
 			if writer is not None:
 				writer.add_scalar("eval/win_rate_random", res_rand["win_rate"], global_step)
@@ -274,10 +289,13 @@ def main():
 				writer.add_scalar("eval/win_rate_greedy_v1_ci95", res_greedy1["win_rate_ci95"], global_step)
 				writer.add_scalar("eval/win_rate_basic_priority", res_basic["win_rate"], global_step)
 				writer.add_scalar("eval/win_rate_basic_priority_ci95", res_basic["win_rate_ci95"], global_step)
+				writer.add_scalar("eval/win_rate_selfplay", res_self["win_rate"], global_step)
+				writer.add_scalar("eval/win_rate_selfplay_ci95", res_self["win_rate_ci95"], global_step)
 				writer.add_scalar("eval/draw_rate_random", res_rand["draws"] / max(1, res_rand["n"]), global_step)
 				writer.add_scalar("eval/avg_turns_greedy_v1", res_greedy1["avg_turns"], global_step)
 				writer.add_scalar("eval/avg_turns_random", res_rand["avg_turns"], global_step)
 				writer.add_scalar("eval/avg_turns_basic_priority", res_basic["avg_turns"], global_step)
+				writer.add_scalar("eval/avg_turns_selfplay", res_self["avg_turns"], global_step)
 				writer.add_scalar("eval/avg_prestige", res_greedy1["avg_prestige"], global_step)
 				# Plot and log figures
 				try:
@@ -288,6 +306,7 @@ def main():
 					ax.plot(hist_steps, hist_wr_rand, label="random")
 					ax.plot(hist_steps, hist_wr_greedy1, label="greedy_v1")
 					ax.plot(hist_steps, hist_wr_basic, label="basic_priority")
+					ax.plot(hist_steps, hist_wr_self, label="self_play")
 					ax.set_ylim(0, 1.0)
 					ax.set_title("Win Rates")
 					ax.set_xlabel("steps")
@@ -298,6 +317,7 @@ def main():
 					ax.plot(hist_steps, hist_turns_rand, label="random")
 					ax.plot(hist_steps, hist_turns_greedy1, label="greedy_v1")
 					ax.plot(hist_steps, hist_turns_basic, label="basic_priority")
+					ax.plot(hist_steps, hist_turns_self, label="self_play")
 					ax.set_title("Avg Turns (pair-moves)")
 					ax.set_xlabel("steps")
 					ax.set_ylabel("turns")

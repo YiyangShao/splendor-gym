@@ -34,11 +34,8 @@ class SelfPlayWrapper(gym.Wrapper):
 		if info.get("to_play", 0) == 1:
 			a = self.opponent_policy(obs, info)
 			obs, opp_reward, term, trunc, info = self.env.step(a)
-			# From our POV, opponent terminal reward is negated; else 0
-			if term or trunc:
-				reward = -opp_reward
-			else:
-				reward = 0.0
+			# Env reward is already from our (player 0) POV; pass through on terminal, else 0
+			reward = opp_reward if (term or trunc) else 0.0
 			return obs, reward, term, trunc, info
 		# Shouldn't happen, but return zero reward
 		return obs, 0.0, term, trunc, info

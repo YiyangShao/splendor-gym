@@ -34,4 +34,4 @@ print(eval_vs_opponent(lambda: make_selfplay_env(0)(), policy, n_games=400, seed
 PY 
 
 
-python ppo_splendor.py --total-timesteps 60000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
+python ppo_splendor.py --total-timesteps 600000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal

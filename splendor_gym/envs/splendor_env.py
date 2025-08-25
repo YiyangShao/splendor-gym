@@ -68,7 +68,11 @@ class SplendorEnv(gym.Env):
 		reward = 0.0
 		if terminated:
 			w = winner(self.state)
-			reward = 0.0 if w is None else (1.0 if w == self.current_player else -1.0)
+			# Draw penalty if turn limit reached
+			if w is None and getattr(self.state, "turn_limit_reached", False):
+				reward = -0.1
+			else:
+				reward = 0.0 if w is None else (1.0 if w == self.current_player else -1.0)
 		mask = np.array(legal_moves(self.state), dtype=np.int8) if not terminated else np.zeros(self.action_space.n, dtype=np.int8)
 		return obs, float(reward), bool(terminated), False, {"action_mask": mask, "to_play": self.state.to_play}
 

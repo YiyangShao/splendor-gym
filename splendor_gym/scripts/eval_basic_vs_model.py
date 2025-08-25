@@ -1,11 +1,13 @@
 import argparse
 import os
 import torch
+import numpy as np
 
-from splendor_gym.scripts.eval_suite import eval_vs_opponent, basic_priority_opponent, model_greedy_policy_from
-from splendor_gym.engine.encode import OBSERVATION_DIM, TOTAL_ACTIONS
+from splendor_gym.scripts.eval_suite import eval_vs_opponent, model_greedy_policy_from
+from splendor_gym.scripts.eval_suite import basic_priority_opponent
 from splendor_gym.envs import SplendorEnv
 from splendor_gym.wrappers.selfplay import SelfPlayWrapper
+from splendor_gym.engine.encode import OBSERVATION_DIM, TOTAL_ACTIONS
 
 
 def load_model(path: str, device: str = "cpu"):
@@ -19,7 +21,7 @@ def load_model(path: str, device: str = "cpu"):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--ckpt", type=str, default="runs/ppo_splendor/ppo_splendor_latest.pt")
+	parser.add_argument("--ckpt", type=str, default="runs/ppo_splendor.pt")
 	parser.add_argument("--games", type=int, default=200)
 	parser.add_argument("--seed", type=int, default=0)
 	args = parser.parse_args()
@@ -29,14 +31,16 @@ def main():
 
 	device = "cpu"
 	model = load_model(args.ckpt, device=device)
-	policy = model_greedy_policy_from(model, device=device)
+	opp_policy = model_greedy_policy_from(model, device=device)
 
 	def make_env():
 		env = SplendorEnv(num_players=2)
-		return SelfPlayWrapper(env, opponent_policy=basic_priority_opponent)
+		# Here, our evaluated agent is basic_priority; opponent is the model
+		return SelfPlayWrapper(env, opponent_policy=opp_policy)
 
-	res = eval_vs_opponent(make_env, policy, n_games=args.games, seed=args.seed)
-	print({k: v for k, v in res.items() if k in ("n","wins","losses","draws","win_rate","win_rate_ci95","avg_turns","avg_prestige")})
+	# Evaluate basic_priority as the 'agent' vs model as opponent
+	res = eval_vs_opponent(make_env, basic_priority_opponent, n_games=args.games, seed=args.seed)
+	print(res)
 
 
 if __name__ == "__main__":

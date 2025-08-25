@@ -54,9 +54,13 @@ ENV/
 Thumbs.db 
 
 # Training outputs
-runs/
 *.png
 *.svg
 *.pdf
 # TensorBoard
-**/events.out.tfevents.* 
+**/events.out.tfevents.*
+
+# Ignore runs except the latest checkpoint we want to commit
+runs/*
+!runs/ppo_splendor/ppo_splendor_latest.pt
+!runs/.gitkeep 
