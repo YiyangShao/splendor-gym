@@ -105,6 +105,9 @@ def main():
 	if torch.cuda.is_available():
 		torch.cuda.manual_seed_all(args.seed)
 
+	# Run timestamp for checkpoint naming (constant for this run)
+	run_start_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+
 	num_envs = args.num_envs
 	num_steps = args.num_steps
 	envs = gym.vector.SyncVectorEnv([make_env(int(rng.randint(1e9))) for _ in range(num_envs)])
@@ -127,8 +130,7 @@ def main():
 
 	num_updates = args.total_timesteps // (num_envs * num_steps)
 	global_step = 0
-	best_wr_greedy = -1.0
-	checkpoint_pool = []
+	# Checkpointing: save latest each eval and a timestamped copy
 	# Histories for plotting
 	hist_steps: list[int] = []
 	hist_wr_rand: list[float] = []
@@ -252,9 +254,10 @@ def main():
 		# Periodic evaluation
 		if (update + 1) % args.eval_every_updates == 0:
 			policy_eval = model_greedy_policy_from(agent, device=device)
-			res_rand = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update)
-			res_greedy1 = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+1)
-			res_basic = eval_vs_opponent(lambda: make_selfplay_env(int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+2)
+			from splendor_gym.scripts.eval_suite import make_selfplay_env_with
+			res_rand = eval_vs_opponent(lambda: make_selfplay_env_with(random_opponent, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update)
+			res_greedy1 = eval_vs_opponent(lambda: make_selfplay_env_with(greedy_opponent_v1, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+1)
+			res_basic = eval_vs_opponent(lambda: make_selfplay_env_with(basic_priority_opponent, int(rng.randint(1e9)))(), policy_eval, n_games=args.eval_games, seed=update+2)
 			# Update histories
 			hist_steps.append(global_step)
 			hist_wr_rand.append(res_rand["win_rate"])
@@ -324,22 +327,26 @@ def main():
 					plt.close(fig)
 				except Exception as e:
 					print(f"[warn] plotting failed: {e}")
-			# Best checkpoint gating
-			if res_greedy1["win_rate"] > best_wr_greedy:
-				best_wr_greedy = res_greedy1["win_rate"]
-				best_path = os.path.join(os.path.dirname(args.save_path), "ppo_splendor_best.pt")
-				os.makedirs(os.path.dirname(best_path), exist_ok=True)
-				torch.save(agent.state_dict(), best_path)
-				print(f"[eval] new best vs greedy_v1: {best_wr_greedy:.3f} saved {best_path}")
-				checkpoint_pool.append(best_path)
+			# Save checkpoints: overwrite latest and overwrite a single run-timestamped file
+			latest_path = os.path.join(args.log_dir, "ppo_splendor_latest.pt")
+			ts_dir = os.path.join(args.log_dir, "checkpoints")
+			os.makedirs(ts_dir, exist_ok=True)
+			ts_path = os.path.join(ts_dir, f"ppo_splendor_{run_start_ts}.pt")
+			torch.save(agent.state_dict(), latest_path)
+			torch.save(agent.state_dict(), ts_path)
+			print(f"[eval] saved {latest_path} and {ts_path}")
 
 		if (update + 1) % 10 == 0:
 			print(f"update={update+1}/{num_updates}")
 
-	# Save final
-	os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
-	torch.save(agent.state_dict(), args.save_path)
-	print(f"Saved model to {args.save_path}")
+	# Save final snapshot as latest and run-timestamped
+	latest_path = os.path.join(args.log_dir, "ppo_splendor_latest.pt")
+	ts_dir = os.path.join(args.log_dir, "checkpoints")
+	os.makedirs(ts_dir, exist_ok=True)
+	ts_path = os.path.join(ts_dir, f"ppo_splendor_{run_start_ts}.pt")
+	torch.save(agent.state_dict(), latest_path)
+	torch.save(agent.state_dict(), ts_path)
+	print(f"Saved final {latest_path} and {ts_path}")
 
 
 if __name__ == "__main__":

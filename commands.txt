@@ -32,3 +32,6 @@ policy = model_greedy_policy_from(agent)
 print(eval_vs_opponent(lambda: make_selfplay_env(0)(), policy, n_games=400, seed=42))
 print(eval_vs_opponent(lambda: make_selfplay_env(0)(), policy, n_games=400, seed=43))
 PY 
+
+
+python ppo_splendor.py --total-timesteps 60000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
