@@ -71,6 +71,15 @@ def make_env(seed: int):
 	return thunk
 
 
+def make_env_with(seed: int, opponent_policy):
+	def thunk():
+		env = SplendorEnv(num_players=2)
+		env = SelfPlayWrapper(env, opponent_policy=opponent_policy)
+		env.reset(seed=seed)
+		return env
+	return thunk
+
+
 def linear_lr_schedule(initial_lr: float, progress: float) -> float:
 	return initial_lr * progress
 
@@ -95,6 +104,7 @@ def main():
 	parser.add_argument("--eval-every-updates", type=int, default=10)
 	parser.add_argument("--eval-games", type=int, default=400)
 	parser.add_argument("--lr-anneal", action="store_true")
+	parser.add_argument("--train-opponent", type=str, default="basic", choices=["random", "greedy_v1", "basic"], help="Opponent policy for rollouts")
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -110,7 +120,17 @@ def main():
 
 	num_envs = args.num_envs
 	num_steps = args.num_steps
-	envs = gym.vector.SyncVectorEnv([make_env(int(rng.randint(1e9))) for _ in range(num_envs)])
+	# Select training opponent policy
+	if args.train_opponent == "random":
+		train_opp = random_opponent
+	elif args.train_opponent == "greedy_v1":
+		train_opp = greedy_opponent_v1
+	elif args.train_opponent == "basic":
+		train_opp = basic_priority_opponent
+	else:
+		raise ValueError("Unsupported --train-opponent")
+
+	envs = gym.vector.SyncVectorEnv([make_env_with(int(rng.randint(1e9)), train_opp) for _ in range(num_envs)])
 
 	obs = np.zeros((num_envs, OBSERVATION_DIM), dtype=np.int32)
 	masks = np.zeros((num_envs, TOTAL_ACTIONS), dtype=np.int8)
@@ -145,6 +165,84 @@ def main():
 	hist_pol_loss: list[float] = []
 	hist_val_loss: list[float] = []
 	hist_entropy: list[float] = []
+
+	# Initial eval at step 0 for baseline datapoint
+	policy_eval0 = model_greedy_policy_from(agent, device=device)
+	from splendor_gym.scripts.eval_suite import make_selfplay_env_with
+	res_rand0 = eval_vs_opponent(lambda: make_selfplay_env_with(random_opponent, int(rng.randint(1e9)))(), policy_eval0, n_games=args.eval_games, seed=0)
+	res_greedy10 = eval_vs_opponent(lambda: make_selfplay_env_with(greedy_opponent_v1, int(rng.randint(1e9)))(), policy_eval0, n_games=args.eval_games, seed=1)
+	res_basic0 = eval_vs_opponent(lambda: make_selfplay_env_with(basic_priority_opponent, int(rng.randint(1e9)))(), policy_eval0, n_games=args.eval_games, seed=2)
+	opp_self0 = model_greedy_policy_from(agent, device=device)
+	res_self0 = eval_vs_opponent(lambda: make_selfplay_env_with(opp_self0, int(rng.randint(1e9)))(), policy_eval0, n_games=args.eval_games, seed=3)
+
+	hist_steps.append(global_step)
+	hist_wr_rand.append(res_rand0["win_rate"])
+	hist_wr_greedy1.append(res_greedy10["win_rate"])
+	hist_wr_basic.append(res_basic0["win_rate"])
+	hist_wr_self.append(res_self0["win_rate"])
+	hist_turns_rand.append(res_rand0["avg_turns"])
+	hist_turns_greedy1.append(res_greedy10["avg_turns"])
+	hist_turns_basic.append(res_basic0["avg_turns"])
+	hist_turns_self.append(res_self0["avg_turns"])
+
+	if writer is not None:
+		writer.add_scalar("eval/win_rate_random", res_rand0["win_rate"], global_step)
+		writer.add_scalar("eval/win_rate_random_ci95", res_rand0["win_rate_ci95"], global_step)
+		writer.add_scalar("eval/win_rate_greedy_v1", res_greedy10["win_rate"], global_step)
+		writer.add_scalar("eval/win_rate_greedy_v1_ci95", res_greedy10["win_rate_ci95"], global_step)
+		writer.add_scalar("eval/win_rate_basic_priority", res_basic0["win_rate"], global_step)
+		writer.add_scalar("eval/win_rate_basic_priority_ci95", res_basic0["win_rate_ci95"], global_step)
+		writer.add_scalar("eval/win_rate_selfplay", res_self0["win_rate"], global_step)
+		writer.add_scalar("eval/win_rate_selfplay_ci95", res_self0["win_rate_ci95"], global_step)
+		writer.add_scalar("eval/draw_rate_random", res_rand0["draws"] / max(1, res_rand0["n"]), global_step)
+		writer.add_scalar("eval/avg_turns_greedy_v1", res_greedy10["avg_turns"], global_step)
+		writer.add_scalar("eval/avg_turns_random", res_rand0["avg_turns"], global_step)
+		writer.add_scalar("eval/avg_turns_basic_priority", res_basic0["avg_turns"], global_step)
+		writer.add_scalar("eval/avg_turns_selfplay", res_self0["avg_turns"], global_step)
+		writer.add_scalar("eval/avg_prestige", res_greedy10["avg_prestige"], global_step)
+		# Initial summary figure
+		try:
+			fig, axes = plt.subplots(2, 2, figsize=(10, 7))
+			ax = axes[0,0]
+			ax.plot(hist_steps, hist_wr_rand, label="random")
+			ax.plot(hist_steps, hist_wr_greedy1, label="greedy_v1")
+			ax.plot(hist_steps, hist_wr_basic, label="basic_priority")
+			ax.plot(hist_steps, hist_wr_self, label="self_play")
+			ax.set_ylim(0, 1.0)
+			ax.set_title("Win Rates")
+			ax.set_xlabel("steps")
+			ax.set_ylabel("win rate")
+			ax.legend()
+			ax = axes[0,1]
+			ax.plot(hist_steps, hist_turns_rand, label="random")
+			ax.plot(hist_steps, hist_turns_greedy1, label="greedy_v1")
+			ax.plot(hist_steps, hist_turns_basic, label="basic_priority")
+			ax.plot(hist_steps, hist_turns_self, label="self_play")
+			ax.set_title("Avg Turns (pair-moves)")
+			ax.set_xlabel("steps")
+			ax.set_ylabel("turns")
+			ax.legend()
+			ax = axes[1,0]
+			x_loss = list(range(len(hist_pol_loss)))
+			ax.plot(x_loss, hist_pol_loss, label="policy")
+			ax.plot(x_loss, hist_val_loss, label="value")
+			ax.plot(x_loss, hist_entropy, label="entropy")
+			ax.set_title("Losses / Entropy")
+			ax.set_xlabel("updates")
+			ax.legend()
+			ax = axes[1,1]
+			x_lr = list(range(len(hist_lr)))
+			ax.plot(x_lr, hist_lr, label="lr")
+			ax.set_title("Learning Rate")
+			ax.set_xlabel("updates")
+			fig.suptitle(f"Summary (run_start={run_start_ts}) @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+			fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+			writer.add_figure("eval/summary", fig, global_step)
+			out_path = os.path.join(args.log_dir, f"summary_{run_start_ts}.png")
+			fig.savefig(out_path)
+			plt.close(fig)
+		except Exception as e:
+			print(f"[warn] initial plotting failed: {e}")
 
 	for update in range(num_updates):
 		# LR annealing
