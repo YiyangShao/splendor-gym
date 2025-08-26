@@ -35,3 +35,6 @@ PY
 
 
 python ppo_splendor.py --total-timesteps 600000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
+
+
+python ppo_splendor.py --total-timesteps 2000000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal

@@ -74,7 +74,10 @@ class SplendorEnv(gym.Env):
 			else:
 				reward = 0.0 if w is None else (1.0 if w == self.current_player else -1.0)
 		mask = np.array(legal_moves(self.state), dtype=np.int8) if not terminated else np.zeros(self.action_space.n, dtype=np.int8)
-		return obs, float(reward), bool(terminated), False, {"action_mask": mask, "to_play": self.state.to_play}
+		info = {"action_mask": mask, "to_play": self.state.to_play}
+		if terminated and getattr(self.state, "turn_limit_reached", False):
+			info["turn_limit"] = True
+		return obs, float(reward), bool(terminated), False, info
 
 	def render(self):
 		if self.render_mode not in ("human", None):

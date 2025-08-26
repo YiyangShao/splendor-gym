@@ -80,6 +80,15 @@ def make_env_with(seed: int, opponent_policy):
 	return thunk
 
 
+def make_env_selfplay(seed: int, opponent_supplier):
+	def thunk():
+		env = SplendorEnv(num_players=2)
+		env = SelfPlayWrapper(env, opponent_policy=random_opponent, random_starts=True, opponent_supplier=opponent_supplier)
+		env.reset(seed=seed)
+		return env
+	return thunk
+
+
 def linear_lr_schedule(initial_lr: float, progress: float) -> float:
 	return initial_lr * progress
 
@@ -105,6 +114,14 @@ def main():
 	parser.add_argument("--eval-games", type=int, default=400)
 	parser.add_argument("--lr-anneal", action="store_true")
 	parser.add_argument("--train-opponent", type=str, default="basic", choices=["random", "greedy_v1", "basic"], help="Opponent policy for rollouts")
+	parser.add_argument("--self-play", dest="self_play", action="store_true", default=True, help="Enable opponent pool self-play for training rollouts (default)")
+	parser.add_argument("--no-self-play", dest="self_play", action="store_false", help="Disable self-play; use --train-opponent for static opponent")
+	parser.add_argument("--pool-size", type=int, default=12)
+	parser.add_argument("--snapshot-every-updates", type=int, default=10)
+	parser.add_argument("--p-current", type=float, default=0.25, help="Probability to face current policy in self-play")
+	parser.add_argument("--target-kl", type=float, default=0.02)
+	parser.add_argument("--vclip", type=float, default=0.2)
+	parser.add_argument("--ent-coef-final", type=float, default=0.01)
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -130,7 +147,38 @@ def main():
 	else:
 		raise ValueError("Unsupported --train-opponent")
 
-	envs = gym.vector.SyncVectorEnv([make_env_with(int(rng.randint(1e9)), train_opp) for _ in range(num_envs)])
+	# Opponent pool and supplier for self-play
+	pool: list[dict] = []  # list of state_dict snapshots
+
+	def frozen_policy_from(state_dict: dict):
+		frozen = ActorCritic(OBSERVATION_DIM, TOTAL_ACTIONS).to(device)
+		frozen.load_state_dict(state_dict)
+		frozen.eval()
+		@torch.no_grad()
+		def _policy(obs, info):
+			obs_t = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0) / 20.0
+			mask = torch.tensor(info["action_mask"], dtype=torch.float32, device=device).unsqueeze(0)
+			logits = frozen.actor(obs_t)
+			logits = logits.masked_fill(mask < 0.5, float("-inf"))
+			return int(torch.argmax(logits, dim=-1).item())
+		return _policy
+
+	def opponent_supplier():
+		# Sample current policy with probability p_current
+		if (len(pool) == 0) or (np.random.rand() < args.p_current):
+			return model_greedy_policy_from(agent, device=device)
+		# Else pick a random frozen snapshot uniformly (soft weighting can be added later)
+		idx = int(np.random.randint(0, len(pool)))
+		return frozen_policy_from(pool[idx])
+
+	# Create agent and optimizer BEFORE creating envs (supplier uses agent)
+	agent = ActorCritic(OBSERVATION_DIM, TOTAL_ACTIONS).to(device)
+	optimizer = torch.optim.Adam(agent.parameters(), lr=args.lr, eps=1e-5)
+
+	if args.self_play:
+		envs = gym.vector.SyncVectorEnv([make_env_selfplay(int(rng.randint(1e9)), opponent_supplier) for _ in range(num_envs)])
+	else:
+		envs = gym.vector.SyncVectorEnv([make_env_with(int(rng.randint(1e9)), train_opp) for _ in range(num_envs)])
 
 	obs = np.zeros((num_envs, OBSERVATION_DIM), dtype=np.int32)
 	masks = np.zeros((num_envs, TOTAL_ACTIONS), dtype=np.int8)
@@ -143,8 +191,7 @@ def main():
 		for i in range(num_envs):
 			masks[i] = info[i]["action_mask"]
 
-	agent = ActorCritic(OBSERVATION_DIM, TOTAL_ACTIONS).to(device)
-	optimizer = torch.optim.Adam(agent.parameters(), lr=args.lr, eps=1e-5)
+	# agent/optimizer already created above
 
 	writer = SummaryWriter(args.log_dir) if args.track else None
 
@@ -238,8 +285,10 @@ def main():
 			fig.suptitle(f"Summary (run_start={run_start_ts}) @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 			fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 			writer.add_figure("eval/summary", fig, global_step)
-			out_path = os.path.join(args.log_dir, f"summary_{run_start_ts}.png")
-			fig.savefig(out_path)
+			out_path_ts = os.path.join(args.log_dir, f"summary_{run_start_ts}.png")
+			out_path_latest = os.path.join(args.log_dir, "summary.png")
+			fig.savefig(out_path_ts)
+			fig.savefig(out_path_latest)
 			plt.close(fig)
 		except Exception as e:
 			print(f"[warn] initial plotting failed: {e}")
@@ -262,7 +311,8 @@ def main():
 		terminals_buf = []
 
 		for step in range(num_steps):
-			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device)
+			# Normalize observation to ~[0,1]
+			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device) / 20.0
 			mask_tensor = torch.tensor(masks, dtype=torch.float32, device=device)
 			with torch.no_grad():
 				action, logprob, entropy, value = agent.get_action_and_value(obs_tensor, mask_tensor)
@@ -290,7 +340,7 @@ def main():
 
 		# Compute returns/advantages (GAE)
 		with torch.no_grad():
-			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device)
+			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device) / 20.0
 			last_values = agent.get_value(obs_tensor).detach().cpu().numpy().squeeze(-1)
 
 		rewards_arr = np.array(rewards_buf)  # [T, N]
@@ -306,7 +356,7 @@ def main():
 		returns = advantages + values_arr
 
 		# Flatten
-		b_obs = torch.tensor(np.concatenate(obs_buf, axis=0), dtype=torch.float32, device=device)
+		b_obs = torch.tensor(np.concatenate(obs_buf, axis=0), dtype=torch.float32, device=device) / 20.0
 		b_masks = torch.tensor(np.concatenate(masks_buf, axis=0), dtype=torch.float32, device=device)
 		b_actions = torch.tensor(np.concatenate(actions_buf, axis=0), dtype=torch.int64, device=device)
 		b_logprobs = torch.tensor(np.concatenate(logprobs_buf, axis=0), dtype=torch.float32, device=device)
@@ -318,6 +368,9 @@ def main():
 		# PPO update
 		batch_size = b_obs.shape[0]
 		minibatch_size = min(args.minibatch_size, batch_size)
+		# Entropy schedule
+		progress_updates = update / max(1, num_updates - 1)
+		ent_coef_now = args.ent_coef + (args.ent_coef_final - args.ent_coef) * progress_updates
 		for epoch in range(args.update_epochs):
 			idxs = torch.randperm(batch_size, device=device)
 			for start in range(0, batch_size, minibatch_size):
@@ -329,14 +382,24 @@ def main():
 				mb_adv = b_advantages[mb_idx]
 				clip_adv = torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef) * mb_adv
 				policy_loss = -torch.min(ratio * mb_adv, clip_adv).mean()
-				value_loss = 0.5 * (new_value.squeeze(-1) - b_returns[mb_idx]).pow(2).mean()
+				# Value clipping
+				v_pred = new_value.squeeze(-1)
+				v_pred_clipped = b_values[mb_idx] + torch.clamp(v_pred - b_values[mb_idx], -args.vclip, args.vclip)
+				v_loss_unclipped = (v_pred - b_returns[mb_idx]).pow(2)
+				v_loss_clipped = (v_pred_clipped - b_returns[mb_idx]).pow(2)
+				value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
 				entropy_loss = -entropy.mean()
-				loss = policy_loss + args.vf_coef * value_loss + args.ent_coef * (-entropy_loss)
+				loss = policy_loss + args.vf_coef * value_loss + ent_coef_now * (-entropy_loss)
 
 				optimizer.zero_grad()
 				loss.backward()
 				nn.utils.clip_grad_norm_(agent.parameters(), 0.5)
 				optimizer.step()
+
+				# Early stop by target KL
+				approx_kl = (b_logprobs[mb_idx] - new_logprob).mean().detach().cpu().item()
+				if args.target_kl > 0 and approx_kl > args.target_kl:
+					break
 
 		# Record loss/lr histories once per update (last minibatch values)
 		hist_lr.append(optimizer.param_groups[0]["lr"])
@@ -352,12 +415,19 @@ def main():
 		torch.save(agent.state_dict(), latest_path)
 		torch.save(agent.state_dict(), ts_path)
 
+		# Snapshot pool maintenance
+		if args.self_play and (update + 1) % max(1, args.snapshot_every_updates) == 0:
+			pool.append(agent.state_dict())
+			if len(pool) > args.pool_size:
+				pool.pop(0)
+
 		# Logging
 		if writer is not None and (update + 1) % 1 == 0:
 			writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
 			writer.add_scalar("losses/policy_loss", policy_loss.item(), global_step)
 			writer.add_scalar("losses/value_loss", value_loss.item(), global_step)
 			writer.add_scalar("losses/entropy", (-entropy_loss).item(), global_step)
+			writer.add_scalar("losses/approx_kl", approx_kl, global_step)
 
 		# Periodic evaluation
 		if (update + 1) % args.eval_every_updates == 0:
@@ -439,9 +509,11 @@ def main():
 					fig.suptitle(f"Summary @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 					fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 					writer.add_figure("eval/summary", fig, global_step)
-					# Overwrite single plot
-					out_path = os.path.join(args.log_dir, "summary.png")
-					fig.savefig(out_path)
+					# Save both timestamped and latest plots
+					out_path_ts = os.path.join(args.log_dir, f"summary_{run_start_ts}.png")
+					out_path_latest = os.path.join(args.log_dir, "summary.png")
+					fig.savefig(out_path_ts)
+					fig.savefig(out_path_latest)
 					plt.close(fig)
 				except Exception as e:
 					print(f"[warn] plotting failed: {e}")
