@@ -1,0 +1,60 @@
+99031c1
+
+commit 99031c1ed99b1ddac015bb74c125aedea055b423
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 21:09:45 2025 -0400
+
+    alpha zero v0 which can't run
+
+ LightZero                                          |   1 +
+ SPLENDOR_ALPHAZERO_README.md                       | 221 +++++++++++++++++++++
+ commands.txt                                       |   4 +-
+ .../debug_test_seed0/formatted_total_config.py     | 178 +++++++++++++++++
+ data_az_ctree/debug_test_seed0/git_diff.txt        |  14 ++
+ data_az_ctree/debug_test_seed0/git_log.txt         |  53 +++++
+ data_az_ctree/debug_test_seed0/total_config.py     | 178 +++++++++++++++++
+ eval_splendor_alphazero.py                         | 101 ++++++++++
+ train_splendor_alphazero.py                        | 105 ++++++++++
+ 9 files changed, 854 insertions(+), 1 deletion(-)
+
+commit 6087c6705fef445bfb3670466347e35beb59ef8e
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 20:56:04 2025 -0400
+
+    temp, ready for ilght zero
+
+ ppo_splendor.py                          |  10 ++++------
+ runs/ppo_splendor/ppo_splendor_latest.pt | Bin 1038962 -> 1038962 bytes
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+commit dc8a46198f6584a18c6b138067263627bcc2edba
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 20:36:22 2025 -0400
+
+    fix normalization
+
+ ppo_splendor.py | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+commit f0d6b9232e829e74457c66e5b0c5b2aa97cc6e53
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 20:32:24 2025 -0400
+
+    add normalization and device checker.
+
+ ppo_splendor.py                          |  63 +++++++++++++++++++++++++++++--
+ runs/ppo_splendor/ppo_splendor_latest.pt | Bin 1038962 -> 1038962 bytes
+ 2 files changed, 59 insertions(+), 4 deletions(-)
+
+commit baad58f1a70c4fc3614d6fb33fd1f175609110df
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 20:25:33 2025 -0400
+
+    self play training
+
+ commands.txt                             |   5 +-
+ ppo_splendor.py                          |  98 +++++++++++++++++++++++++++----
+ runs/ppo_splendor/ppo_splendor_latest.pt | Bin 1038962 -> 1038962 bytes
+ splendor_gym/envs/splendor_env.py        |   5 +-
+ splendor_gym/wrappers/selfplay.py        |  21 ++++++-
+ 5 files changed, 111 insertions(+), 18 deletions(-)
