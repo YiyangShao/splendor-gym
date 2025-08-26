@@ -62,6 +62,48 @@ class ActorCritic(nn.Module):
 		return action, probs.log_prob(action), probs.entropy().mean(), self.critic(x)
 
 
+def normalize_obs_np(obs: np.ndarray) -> np.ndarray:
+	"""Normalize 224-dim observation to [0,1] fieldwise.
+	Supports shapes (OBS,) or (N, OBS).
+	"""
+	arr = obs.astype(np.float32, copy=True)
+	if arr.ndim == 1:
+		arr = arr[None, :]
+	# Offsets per encode.py
+	# 0:6 bank
+	arr[:, 0:6] /= 5.0
+	# player: tokens(6), bonuses(5), prestige(1), reserved_count(1)
+	arr[:, 6:12] /= 10.0
+	arr[:, 12:17] /= 5.0
+	arr[:, 17:18] /= 20.0
+	arr[:, 18:19] /= 3.0
+	# opponent summary
+	arr[:, 19:25] /= 10.0
+	arr[:, 25:30] /= 5.0
+	arr[:, 30:31] /= 20.0
+	arr[:, 31:32] /= 3.0
+	# board 12 x 13 from 32..187
+	base = 32
+	for i in range(12):
+		o = base + i * 13
+		# present (o), tier (o+1), points (o+2), color_onehot 5 (o+3:o+8), cost5 (o+8:o+13)
+		arr[:, o+1:o+2] /= 3.0
+		arr[:, o+2:o+3] /= 5.0
+		# onehot stays
+		arr[:, o+8:o+13] /= 7.0
+	# nobles 5 x 6 from 188..217: present + req5
+	for i in range(5):
+		o = 188 + i * 6
+		arr[:, o+1:o+6] /= 4.0
+	# deck sizes 218..220 with rough caps 40/30/20
+	arr[:, 218] /= 40.0
+	arr[:, 219] /= 30.0
+	arr[:, 220] /= 20.0
+	# turn_count 221, to_play 222, round_flag 223
+	arr[:, 221] = np.clip(arr[:, 221] / 100.0, 0.0, 1.0)
+	# to_play and round flag already 0/1
+	return np.clip(arr.squeeze(0), 0.0, 1.0)
+
 def make_env(seed: int):
 	def thunk():
 		env = SplendorEnv(num_players=2)
@@ -125,6 +167,16 @@ def main():
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	# Device checker output
+	try:
+		print(f"[device] using: {device}")
+		if device.type == "cuda":
+			print(f"[device] cuda_available=True name={torch.cuda.get_device_name(0)} count={torch.cuda.device_count()} capability={torch.cuda.get_device_capability(0)}")
+		else:
+			mps_avail = bool(getattr(torch.backends, "mps", None)) and torch.backends.mps.is_available()
+			print(f"[device] mps_available={mps_avail}")
+	except Exception as _e:
+		print(f"[device] info error: {_e}")
 
 	# Seeding
 	rng = np.random.RandomState(args.seed)
@@ -311,8 +363,9 @@ def main():
 		terminals_buf = []
 
 		for step in range(num_steps):
-			# Normalize observation to ~[0,1]
-			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device) / 20.0
+			# Normalize observation to [0,1]
+			norm = normalize_obs_np(obs)
+			obs_tensor = torch.tensor(norm, dtype=torch.float32, device=device)
 			mask_tensor = torch.tensor(masks, dtype=torch.float32, device=device)
 			with torch.no_grad():
 				action, logprob, entropy, value = agent.get_action_and_value(obs_tensor, mask_tensor)
@@ -340,7 +393,8 @@ def main():
 
 		# Compute returns/advantages (GAE)
 		with torch.no_grad():
-			obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device) / 20.0
+			norm = normalize_obs_np(obs)
+			obs_tensor = torch.tensor(norm, dtype=torch.float32, device=device)
 			last_values = agent.get_value(obs_tensor).detach().cpu().numpy().squeeze(-1)
 
 		rewards_arr = np.array(rewards_buf)  # [T, N]
@@ -356,7 +410,8 @@ def main():
 		returns = advantages + values_arr
 
 		# Flatten
-		b_obs = torch.tensor(np.concatenate(obs_buf, axis=0), dtype=torch.float32, device=device) / 20.0
+		norm_flat = normalize_obs_np(np.concatenate(obs_buf, axis=0))
+		b_obs = torch.tensor(norm_flat, dtype=torch.float32, device=device)
 		b_masks = torch.tensor(np.concatenate(masks_buf, axis=0), dtype=torch.float32, device=device)
 		b_actions = torch.tensor(np.concatenate(actions_buf, axis=0), dtype=torch.int64, device=device)
 		b_logprobs = torch.tensor(np.concatenate(logprobs_buf, axis=0), dtype=torch.float32, device=device)
