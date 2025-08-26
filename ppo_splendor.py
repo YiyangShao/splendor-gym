@@ -64,11 +64,10 @@ class ActorCritic(nn.Module):
 
 def normalize_obs_np(obs: np.ndarray) -> np.ndarray:
 	"""Normalize 224-dim observation to [0,1] fieldwise.
-	Supports shapes (OBS,) or (N, OBS), returns same rank as input.
+	Supports shapes (OBS,) or (N, OBS).
 	"""
-	arr = np.asarray(obs, dtype=np.float32)
-	single = (arr.ndim == 1)
-	if single:
+	arr = obs.astype(np.float32, copy=True)
+	if arr.ndim == 1:
 		arr = arr[None, :]
 	# Offsets per encode.py
 	# 0:6 bank
@@ -103,8 +102,7 @@ def normalize_obs_np(obs: np.ndarray) -> np.ndarray:
 	# turn_count 221, to_play 222, round_flag 223
 	arr[:, 221] = np.clip(arr[:, 221] / 100.0, 0.0, 1.0)
 	# to_play and round flag already 0/1
-	out = arr[0] if single else arr
-	return np.clip(out, 0.0, 1.0)
+	return np.clip(arr.squeeze(0), 0.0, 1.0)
 
 def make_env(seed: int):
 	def thunk():
