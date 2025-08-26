@@ -1,0 +1,14 @@
+diff --git a/commands.txt b/commands.txt
+index 993109c..a4cf731 100644
+--- a/commands.txt
++++ b/commands.txt
+@@ -37,4 +37,6 @@ PY
+ python ppo_splendor.py --total-timesteps 600000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
+ 
+ 
+-python ppo_splendor.py --total-timesteps 2000000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
+\ No newline at end of file
++python ppo_splendor.py --total-timesteps 2000000 --num-envs 16 --num-steps 128 --track --eval-every-updates 10 --eval-games 200 --lr-anneal
++
++python train_splendor_alphazero.py
+\ No newline at end of file
