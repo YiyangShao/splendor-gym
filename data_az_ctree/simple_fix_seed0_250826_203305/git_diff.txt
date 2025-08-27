@@ -1,0 +1,29 @@
+diff --git a/LightZero b/LightZero
+--- a/LightZero
++++ b/LightZero
+@@ -1 +1 @@
+-Subproject commit c2eb5182bc99fc7c1b6c7efd6e92c61011e9788d
++Subproject commit c2eb5182bc99fc7c1b6c7efd6e92c61011e9788d-dirty
+diff --git a/data_az_ctree/splendor_alphazero_experiment_seed0/log/buffer/buffer_logger.txt b/data_az_ctree/splendor_alphazero_experiment_seed0/log/buffer/buffer_logger.txt
+index e69de29..9a48ab3 100644
+--- a/data_az_ctree/splendor_alphazero_experiment_seed0/log/buffer/buffer_logger.txt
++++ b/data_az_ctree/splendor_alphazero_experiment_seed0/log/buffer/buffer_logger.txt
+@@ -0,0 +1,18 @@
++[2025-08-25 21:20:47][utils.py:159][INFO] In the past 60.4 seconds, buffer statistics is as follows:
++[2025-08-25 21:20:47][utils.py:166][INFO] 
+++-------+-----------+-------------+----------+--------------+
++| Name  | pushed_in | sampled_out | removed  | current_have |
+++-------+-----------+-------------+----------+--------------+
++| Value | 0.000000  | 0.000000    | 0.000000 | 0.000000     |
+++-------+-----------+-------------+----------+--------------+
++
++
++[2025-08-25 21:21:47][utils.py:159][INFO] In the past 60.4 seconds, buffer statistics is as follows:
++[2025-08-25 21:21:47][utils.py:166][INFO] 
+++-------+-----------+-------------+----------+--------------+
++| Name  | pushed_in | sampled_out | removed  | current_have |
+++-------+-----------+-------------+----------+--------------+
++| Value | 0.000000  | 0.000000    | 0.000000 | 0.000000     |
+++-------+-----------+-------------+----------+--------------+
++
++
