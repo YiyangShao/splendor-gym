@@ -249,7 +249,7 @@ def main():
         print("\nFor custom settings:")
         print("!python train_splendor_colab.py --num_simulations 25 --max_turns 60")
         return True
-        else:
+    else:
         print("\n❌ Setup verification failed")
         print("Some components may not work correctly")
         return False
