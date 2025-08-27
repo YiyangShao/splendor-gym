@@ -1,0 +1,907 @@
+266e173
+
+commit 266e173bdabf1482a33b2d70297a63dd3a5fb355
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:28:33 2025 -0400
+
+    Clean up debug files and finalize working training
+    
+    - Remove all debug_*.py and test_*.py files
+    - Remove all temporary debug directories
+    - Keep working training script: train_splendor_working.py
+    - Add comprehensive fixes summary: FIXES_SUMMARY.md
+    
+    TRAINING NOW WORKS:
+    ✅ Episodes complete properly (turn limit enforced)
+    ✅ Buffer receives data (serialization fixed)
+    ✅ All core issues resolved
+    ✅ Realistic time estimates provided
+    
+    Ready for production use with train_splendor_working.py
+
+ FIXES_SUMMARY.md                                   |  77 ++++++++++
+ debug_collection_hang.py                           | 168 --------------------
+ debug_config_environment.py                        | 170 ---------------------
+ debug_episode_completion.py                        | 113 --------------
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ minimal_test/log/collector/collector_logger.txt    |   0
+ .../log/collector/collector_logger.txt             |   0
+ test_debug/log/collector/collector_logger.txt      |   0
+ test_training_with_timeout.py                      | 116 --------------
+ .../log/collector/collector_logger.txt             |   0
+ 17 files changed, 77 insertions(+), 567 deletions(-)
+
+commit a9c8c027a78e2209f2d265baf6ddb9af59b956e4
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:28:07 2025 -0400
+
+    lightzero training working
+
+ .../board_games/splendor/envs/splendor_lz_env.py   |  10 +
+ .../quick_test2_seed0/formatted_total_config.py    | 171 +++++
+ data_az_ctree/quick_test2_seed0/git_diff.txt       |   0
+ data_az_ctree/quick_test2_seed0/git_log.txt        | 839 +++++++++++++++++++++
+ .../quick_test2_seed0/log/buffer/buffer_logger.txt |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test2_seed0/total_config.py    | 171 +++++
+ .../quick_test3_seed0/formatted_total_config.py    | 171 +++++
+ data_az_ctree/quick_test3_seed0/git_diff.txt       |  21 +
+ data_az_ctree/quick_test3_seed0/git_log.txt        | 839 +++++++++++++++++++++
+ .../quick_test3_seed0/log/buffer/buffer_logger.txt |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test3_seed0/total_config.py    | 171 +++++
+ .../quick_test_seed0/formatted_total_config.py     | 171 +++++
+ data_az_ctree/quick_test_seed0/git_diff.txt        |   0
+ data_az_ctree/quick_test_seed0/git_log.txt         | 839 +++++++++++++++++++++
+ .../quick_test_seed0/log/buffer/buffer_logger.txt  |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test_seed0/total_config.py     | 171 +++++
+ .../ckpt/iteration_0.pth.tar                       | Bin 0 -> 34874388 bytes
+ .../ckpt/iteration_50.pth.tar                      | Bin 0 -> 34874499 bytes
+ .../formatted_total_config.py                      | 171 +++++
+ .../quick_working_test_seed0/git_diff.txt          |  21 +
+ data_az_ctree/quick_working_test_seed0/git_log.txt | 839 +++++++++++++++++++++
+ .../log/buffer/buffer_logger.txt                   |  77 ++
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  76 ++
+ .../quick_working_test_seed0/total_config.py       | 171 +++++
+ .../timeout_test_seed0/formatted_total_config.py   | 171 +++++
+ data_az_ctree/timeout_test_seed0/git_diff.txt      |  21 +
+ data_az_ctree/timeout_test_seed0/git_log.txt       | 839 +++++++++++++++++++++
+ .../log/buffer/buffer_logger.txt                   |   9 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/timeout_test_seed0/total_config.py   | 171 +++++
+ debug_collection_hang.py                           | 168 +++++
+ debug_config_environment.py                        | 170 +++++
+ debug_episode_completion.py                        | 113 +++
+ .../log/collector/collector_logger.txt             |   0
+ test_training_with_timeout.py                      | 116 +++
+ train_splendor_working.py                          | 190 +++++
+ 49 files changed, 7195 insertions(+)
+
+commit 072f30d812f60e4c1de195b79422e65960975cea
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Tue Aug 26 21:10:51 2025 -0400
+
+    Fix core AlphaZero training issues
+    
+    MAJOR FIXES IMPLEMENTED:
+    
+    1. **Fixed SplendorState Serialization Issue**:
+       - Modified reset() and step() methods to return serializable numpy arrays instead of SplendorState objects in the 'board' field
+       - Fixed illegal action handler to use serializable board state
+       - All transitions now tensorize correctly
+    
+    2. **Fixed Turn Limit Enforcement**:
+       - Added proper turn limit enforcement in step() method
+       - Games now complete after max_turns instead of running infinitely
+       - Episodes complete in ~20 steps with 20-turn limit
+    
+    3. **Environment Manager Configuration**:
+       - Changed from 'subprocess' to 'base' environment manager to avoid multiprocessing issues
+       - Eliminates fork() deprecation warnings on macOS
+    
+    4. **MCTS Optimization**:
+       - Reduced MCTS simulations from 200 to reasonable numbers for testing
+       - Individual policy forward passes now take ~0.05s instead of hanging
+    
+    WHAT WORKS NOW:
+    ✅ Individual environment episodes complete properly (3-20s)
+    ✅ Individual policy components work fast
+    ✅ Transition processing and tensorization works
+    ✅ All serialization issues resolved
+    ✅ Turn limits properly enforced
+    
+    REMAINING ISSUES:
+    ❌ Environment registry conflicts in config system
+    ❌ Model parameter mismatches in direct tests
+    ❌ Full integration testing needed
+    
+    CORE PROBLEM SOLVED: The root cause of zero buffer statistics was that episodes never completed due to missing turn limit enforcement, combined with SplendorState serialization issues. Both are now fixed.
+    
+    Next: Resolve config system registry issues to enable full training.
+
+ .../config/splendor_alphazero_sp_mode_config.py    |   2 +-
+ .../board_games/splendor/envs/splendor_lz_env.py   |  44 ++++--
+ LightZero_backup                                   |   1 -
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ fix_training_issues.py                             | 168 ---------------------
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ minimal_test/log/collector/collector_logger.txt    |   0
+ simple_training_fix.py                             |  98 ------------
+ .../log/collector/collector_logger.txt             |   0
+ test_debug/log/collector/collector_logger.txt      |   0
+ .../log/collector/collector_logger.txt             |   0
+ 16 files changed, 35 insertions(+), 278 deletions(-)
+
+commit 9bae5dc16fdc060c7013793cbcf8cab3a5f8bd8f
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Tue Aug 26 20:39:46 2025 -0400
+
+    Integrate LightZero as repository content with Splendor support
+    
+    - Convert LightZero from external reference to actual repository content
+    - Add custom Splendor environment integration in LightZero/zoo/board_games/splendor/
+    - Include all LightZero source code for better control and customization
+    - Add training scripts and configuration files for Splendor AlphaZero
+    - Remove git-related files from LightZero to avoid submodule conflicts
+
+ LightZero/.coveragerc                              |     2 +
+ LightZero/.nojekyll                                |     0
+ LightZero/.readthedocs.yaml                        |    36 +
+ LightZero/.style.yapf                              |    11 +
+ LightZero/CHANGELOG.md                             |   134 +
+ LightZero/CODE_OF_CONDUCT.md                       |   128 +
+ LightZero/CONTRIBUTING.md                          |    63 +
+ LightZero/Dockerfile                               |    52 +
+ LightZero/LICENSE                                  |   201 +
+ LightZero/Makefile                                 |    71 +
+ LightZero/README.md                                |   647 +
+ LightZero/README.zh.md                             |   630 +
+ LightZero/assets/pooltool/3hits.gif                |   Bin 0 -> 648916 bytes
+ LightZero/assets/pooltool/4hits.gif                |   Bin 0 -> 733607 bytes
+ LightZero/assets/pooltool/largecut.gif             |   Bin 0 -> 609500 bytes
+ LightZero/assets/pooltool/nocut.gif                |   Bin 0 -> 311515 bytes
+ LightZero/cloc.sh                                  |    65 +
+ LightZero/docs/Makefile                            |    35 +
+ LightZero/docs/README.md                           |    60 +
+ LightZero/docs/diagrams.mk                         |    21 +
+ LightZero/docs/make.bat                            |    35 +
+ LightZero/docs/source/_libs/.keep                  |     0
+ LightZero/docs/source/_shims/.keep                 |     0
+ LightZero/docs/source/_static/.keep                |     0
+ LightZero/docs/source/_static/css/style.css        |     6 +
+ LightZero/docs/source/_templates/.keep             |     0
+ LightZero/docs/source/_templates/layout.html       |     4 +
+ LightZero/docs/source/_templates/page.html         |    19 +
+ LightZero/docs/source/_templates/versions.html     |    27 +
+ LightZero/docs/source/api_doc/agent/index.rst      |    22 +
+ LightZero/docs/source/api_doc/config/index.rst     |     7 +
+ LightZero/docs/source/api_doc/config/meta.rst      |    38 +
+ LightZero/docs/source/api_doc/entry/index.rst      |    23 +
+ LightZero/docs/source/api_doc/envs/index.rst       |    11 +
+ LightZero/docs/source/api_doc/index.rst            |    15 +
+ LightZero/docs/source/api_doc/index_zh.rst         |    14 +
+ .../api_doc/mcts/buffer/efficientzero_buffer.rst   |     5 +
+ .../source/api_doc/mcts/buffer/game_buffer.rst     |     5 +
+ .../docs/source/api_doc/mcts/buffer/index.rst      |    10 +
+ .../source/api_doc/mcts/buffer/muzero_buffer.rst   |     5 +
+ LightZero/docs/source/api_doc/mcts/index.rst       |     8 +
+ .../docs/source/api_doc/mcts/tree_search/index.rst |    11 +
+ .../docs/source/api_doc/model/alphazero_model.rst  |    11 +
+ LightZero/docs/source/api_doc/model/common.rst     |    46 +
+ .../source/api_doc/model/efficientzero_model.rst   |    11 +
+ .../api_doc/model/efficientzero_model_mlp.rst      |    11 +
+ LightZero/docs/source/api_doc/model/index.rst      |    18 +
+ .../docs/source/api_doc/model/muzero_model.rst     |    11 +
+ .../docs/source/api_doc/model/muzero_model_mlp.rst |    11 +
+ .../api_doc/model/sampled_efficientzero_model.rst  |    11 +
+ .../model/sampled_efficientzero_model_mlp.rst      |    11 +
+ .../api_doc/model/stochastic_muzero_model.rst      |    29 +
+ .../api_doc/model/stochastic_muzero_model_mlp.rst  |     9 +
+ LightZero/docs/source/api_doc/policy/index.rst     |    68 +
+ LightZero/docs/source/api_doc/worker/index.rst     |    12 +
+ LightZero/docs/source/conf.py                      |   193 +
+ LightZero/docs/source/index.rst                    |    32 +
+ LightZero/docs/source/index_zh.rst                 |    33 +
+ .../docs/source/tutorials/algos/customize_algos.md |   164 +
+ .../source/tutorials/algos/customize_algos_zh.md   |   167 +
+ LightZero/docs/source/tutorials/config/config.md   |   166 +
+ .../docs/source/tutorials/config/config_zh.md      |   170 +
+ .../docs/source/tutorials/envs/customize_envs.md   |   247 +
+ .../source/tutorials/envs/customize_envs_zh.md     |   255 +
+ .../installation/installation_and_quickstart.md    |    86 +
+ .../installation/installation_and_quickstart_zh.md |    86 +
+ LightZero/docs/source/tutorials/logs/logs.md       |   116 +
+ LightZero/docs/source/tutorials/logs/logs_zh.md    |   119 +
+ LightZero/format.sh                                |    20 +
+ LightZero/lzero/__init__.py                        |     1 +
+ LightZero/lzero/agent/__init__.py                  |     6 +
+ LightZero/lzero/agent/alphazero.py                 |   381 +
+ LightZero/lzero/agent/config/__init__.py           |     0
+ LightZero/lzero/agent/config/alphazero/__init__.py |    10 +
+ .../agent/config/alphazero/gomoku_play_with_bot.py |   104 +
+ .../config/alphazero/tictactoe_play_with_bot.py    |   100 +
+ .../lzero/agent/config/efficientzero/__init__.py   |    18 +
+ .../efficientzero/gym_breakoutnoframeskip_v4.py    |    85 +
+ .../agent/config/efficientzero/gym_cartpole_v0.py  |    73 +
+ .../config/efficientzero/gym_lunarlander_v2.py     |    76 +
+ .../efficientzero/gym_mspacmannoframeskip_v4.py    |    84 +
+ .../agent/config/efficientzero/gym_pendulum_v1.py  |    73 +
+ .../config/efficientzero/gym_pongnoframeskip_v4.py |    84 +
+ .../lzero/agent/config/gumbel_muzero/__init__.py   |    13 +
+ .../config/gumbel_muzero/gomoku_play_with_bot.py   |    90 +
+ .../agent/config/gumbel_muzero/gym_cartpole_v0.py  |    77 +
+ .../gumbel_muzero/tictactoe_play_with_bot.py       |    85 +
+ LightZero/lzero/agent/config/muzero/__init__.py    |    22 +
+ .../agent/config/muzero/gomoku_play_with_bot.py    |    89 +
+ .../config/muzero/gym_breakoutnoframeskip_v4.py    |    89 +
+ .../lzero/agent/config/muzero/gym_cartpole_v0.py   |   104 +
+ .../agent/config/muzero/gym_lunarlander_v2.py      |    83 +
+ .../config/muzero/gym_mspacmannoframeskip_v4.py    |    87 +
+ .../lzero/agent/config/muzero/gym_pendulum_v1.py   |    75 +
+ .../agent/config/muzero/gym_pongnoframeskip_v4.py  |    87 +
+ .../agent/config/muzero/tictactoe_play_with_bot.py |    85 +
+ .../agent/config/sampled_alphazero/__init__.py     |    10 +
+ .../sampled_alphazero/gomoku_play_with_bot.py      |   114 +
+ .../sampled_alphazero/tictactoe_play_with_bot.py   |   102 +
+ .../agent/config/sampled_efficientzero/__init__.py |    18 +
+ .../gym_breakoutnoframeskip_v4.py                  |    78 +
+ .../sampled_efficientzero/gym_cartpole_v0.py       |    77 +
+ .../gym_lunarlandercontinuous_v2.py                |    84 +
+ .../gym_mspacmannoframeskip_v4.py                  |    78 +
+ .../sampled_efficientzero/gym_pendulum_v1.py       |    79 +
+ .../gym_pongnoframeskip_v4.py                      |    78 +
+ LightZero/lzero/agent/efficientzero.py             |   425 +
+ LightZero/lzero/agent/gumbel_muzero.py             |   425 +
+ LightZero/lzero/agent/mcts_tictactoe.py            |   195 +
+ LightZero/lzero/agent/mcts_tictactoe_zh.py         |   195 +
+ LightZero/lzero/agent/muzero.py                    |   425 +
+ LightZero/lzero/agent/sampled_alphazero.py         |   381 +
+ LightZero/lzero/agent/sampled_efficientzero.py     |   425 +
+ LightZero/lzero/config/__init__.py                 |     0
+ LightZero/lzero/config/meta.py                     |    19 +
+ LightZero/lzero/config/utils.py                    |    21 +
+ LightZero/lzero/entry/__init__.py                  |    13 +
+ LightZero/lzero/entry/eval_alphazero.py            |    96 +
+ LightZero/lzero/entry/eval_muzero.py               |   110 +
+ LightZero/lzero/entry/eval_muzero_with_gym_env.py  |   118 +
+ LightZero/lzero/entry/train_alphazero.py           |   144 +
+ LightZero/lzero/entry/train_muzero.py              |   240 +
+ LightZero/lzero/entry/train_muzero_segment.py      |   256 +
+ LightZero/lzero/entry/train_muzero_with_gym_env.py |   187 +
+ .../lzero/entry/train_muzero_with_reward_model.py  |   213 +
+ LightZero/lzero/entry/train_rezero.py              |   230 +
+ LightZero/lzero/entry/train_unizero.py             |   235 +
+ LightZero/lzero/entry/train_unizero_segment.py     |   230 +
+ LightZero/lzero/entry/utils.py                     |   221 +
+ LightZero/lzero/envs/__init__.py                   |     0
+ LightZero/lzero/envs/get_wrapped_env.py            |    31 +
+ LightZero/lzero/envs/tests/__init__.py             |     0
+ .../lzero/envs/tests/test_ding_env_wrapper.py      |    31 +
+ .../lzero/envs/tests/test_lightzero_env_wrapper.py |   139 +
+ LightZero/lzero/envs/wrappers/__init__.py          |     2 +
+ .../wrappers/action_discretization_env_wrapper.py  |    92 +
+ .../lzero/envs/wrappers/lightzero_env_wrapper.py   |   113 +
+ LightZero/lzero/mcts/__init__.py                   |     4 +
+ LightZero/lzero/mcts/buffer/__init__.py            |    10 +
+ LightZero/lzero/mcts/buffer/game_buffer.py         |   640 +
+ .../lzero/mcts/buffer/game_buffer_efficientzero.py |   467 +
+ .../lzero/mcts/buffer/game_buffer_gumbel_muzero.py |   123 +
+ LightZero/lzero/mcts/buffer/game_buffer_muzero.py  |   788 +
+ .../lzero/mcts/buffer/game_buffer_rezero_ez.py     |   332 +
+ .../lzero/mcts/buffer/game_buffer_rezero_mz.py     |   404 +
+ .../buffer/game_buffer_sampled_efficientzero.py    |   607 +
+ .../mcts/buffer/game_buffer_sampled_muzero.py      |   588 +
+ .../mcts/buffer/game_buffer_sampled_unizero.py     |   726 +
+ .../mcts/buffer/game_buffer_stochastic_muzero.py   |   172 +
+ LightZero/lzero/mcts/buffer/game_buffer_unizero.py |   632 +
+ LightZero/lzero/mcts/buffer/game_segment.py        |   349 +
+ LightZero/lzero/mcts/ctree/__init__.py             |     0
+ LightZero/lzero/mcts/ctree/common_lib/cminimax.cpp |    68 +
+ LightZero/lzero/mcts/ctree/common_lib/cminimax.h   |    40 +
+ LightZero/lzero/mcts/ctree/common_lib/utils.cpp    |    27 +
+ .../mcts/ctree/ctree_alphazero/CMakeLists.txt      |    32 +
+ .../mcts/ctree/ctree_alphazero/CMakeLists_mcts.txt |    29 +
+ .../mcts/ctree/ctree_alphazero/CMakeLists_node.txt |    29 +
+ LightZero/lzero/mcts/ctree/ctree_alphazero/make.sh |    24 +
+ .../mcts/ctree/ctree_alphazero/mcts_alphazero.cpp  |   376 +
+ .../mcts/ctree/ctree_alphazero/node_alphazero.cpp  |    33 +
+ .../mcts/ctree/ctree_alphazero/node_alphazero.h    |    94 +
+ .../ctree_alphazero/test/eval_alphazero_ctree.py   |   292 +
+ .../test/eval_alphazero_ctree_zh.py                |   244 +
+ .../mcts/ctree/ctree_efficientzero/__init__.py     |     0
+ .../mcts/ctree/ctree_efficientzero/ez_tree.cpp     | 14447 ++++++++++
+ .../mcts/ctree/ctree_efficientzero/ez_tree.pxd     |   105 +
+ .../mcts/ctree/ctree_efficientzero/ez_tree.pyx     |   121 +
+ .../mcts/ctree/ctree_efficientzero/lib/cnode.cpp   |  1073 +
+ .../mcts/ctree/ctree_efficientzero/lib/cnode.h     |    95 +
+ .../ctree/ctree_gumbel_alphazero/CMakeLists.txt    |    35 +
+ .../mcts/ctree/ctree_gumbel_alphazero/make.sh      |    25 +
+ .../mcts_gumbel_alphazero.cpp                      |   760 +
+ .../ctree_gumbel_alphazero/node_gumbel_alphazero.h |    86 +
+ .../test/eval_mcts_gumbel_alphazero.py             |    34 +
+ .../test/eval_node_gumbel_alphazero.py             |     9 +
+ .../mcts/ctree/ctree_gumbel_muzero/__init__.py     |     0
+ .../mcts/ctree/ctree_gumbel_muzero/gmz_tree.cpp    | 16608 +++++++++++
+ .../mcts/ctree/ctree_gumbel_muzero/gmz_tree.pxd    |    91 +
+ .../mcts/ctree/ctree_gumbel_muzero/gmz_tree.pyx    |   153 +
+ .../mcts/ctree/ctree_gumbel_muzero/lib/cnode.cpp   |  1154 +
+ .../mcts/ctree/ctree_gumbel_muzero/lib/cnode.h     |   109 +
+ .../lzero/mcts/ctree/ctree_muzero/__init__.py      |     0
+ .../lzero/mcts/ctree/ctree_muzero/lib/cnode.cpp    |   930 +
+ .../lzero/mcts/ctree/ctree_muzero/lib/cnode.h      |    95 +
+ .../lzero/mcts/ctree/ctree_muzero/mz_tree.cpp      | 14365 ++++++++++
+ .../lzero/mcts/ctree/ctree_muzero/mz_tree.pxd      |    76 +
+ .../lzero/mcts/ctree/ctree_muzero/mz_tree.pyx      |   107 +
+ .../ctree/ctree_sampled_efficientzero/__init__.py  |     0
+ .../ctree/ctree_sampled_efficientzero/ezs_tree.cpp | 14750 ++++++++++
+ .../ctree/ctree_sampled_efficientzero/ezs_tree.pxd |    90 +
+ .../ctree/ctree_sampled_efficientzero/ezs_tree.pyx |   119 +
+ .../ctree_sampled_efficientzero/lib/cnode.cpp      |  1189 +
+ .../ctree/ctree_sampled_efficientzero/lib/cnode.h  |   123 +
+ .../mcts/ctree/ctree_sampled_muzero/__init__.py    |     0
+ .../mcts/ctree/ctree_sampled_muzero/lib/cnode.cpp  |  1180 +
+ .../mcts/ctree/ctree_sampled_muzero/lib/cnode.h    |   133 +
+ .../mcts/ctree/ctree_sampled_muzero/smz_tree.cpp   | 14736 ++++++++++
+ .../mcts/ctree/ctree_sampled_muzero/smz_tree.pxd   |    90 +
+ .../mcts/ctree/ctree_sampled_muzero/smz_tree.pyx   |   118 +
+ .../mcts/ctree/ctree_stochastic_muzero/__init__.py |     0
+ .../ctree/ctree_stochastic_muzero/lib/cnode.cpp    |   788 +
+ .../mcts/ctree/ctree_stochastic_muzero/lib/cnode.h |    95 +
+ .../ctree_stochastic_muzero/stochastic_mz_tree.cpp | 14144 ++++++++++
+ .../ctree_stochastic_muzero/stochastic_mz_tree.pxd |    74 +
+ .../ctree_stochastic_muzero/stochastic_mz_tree.pyx |    91 +
+ LightZero/lzero/mcts/ptree/__init__.py             |     1 +
+ LightZero/lzero/mcts/ptree/minimax.py              |    99 +
+ LightZero/lzero/mcts/ptree/ptree_az.py             |   441 +
+ LightZero/lzero/mcts/ptree/ptree_az_sampled.py     |   521 +
+ LightZero/lzero/mcts/ptree/ptree_ez.py             |   652 +
+ LightZero/lzero/mcts/ptree/ptree_mz.py             |   602 +
+ LightZero/lzero/mcts/ptree/ptree_sez.py            |   916 +
+ LightZero/lzero/mcts/ptree/ptree_stochastic_mz.py  |   642 +
+ LightZero/lzero/mcts/ptree/test_sez_sample.py      |    18 +
+ LightZero/lzero/mcts/tests/__init__.py             |     0
+ LightZero/lzero/mcts/tests/config/__init__.py      |     0
+ .../config/atari_efficientzero_config_for_test.py  |   105 +
+ .../tictactoe_muzero_bot_mode_config_for_test.py   |   103 +
+ LightZero/lzero/mcts/tests/cprofile_mcts_ptree.py  |   137 +
+ LightZero/lzero/mcts/tests/eval_tree_speed.py      |   365 +
+ LightZero/lzero/mcts/tests/test_game_buffer.py     |    90 +
+ LightZero/lzero/mcts/tests/test_game_segment.py    |   138 +
+ LightZero/lzero/mcts/tests/test_image_transform.py |    12 +
+ LightZero/lzero/mcts/tests/test_mcts_ctree.py      |   355 +
+ LightZero/lzero/mcts/tests/test_mcts_ptree.py      |   276 +
+ .../lzero/mcts/tests/test_mcts_sampled_ctree.py    |   137 +
+ .../lzero/mcts/tests/test_muzero_game_buffer.py    |   135 +
+ LightZero/lzero/mcts/tests/test_utils.py           |    24 +
+ LightZero/lzero/mcts/tree_search/__init__.py       |     6 +
+ LightZero/lzero/mcts/tree_search/mcts_ctree.py     |  1147 +
+ .../lzero/mcts/tree_search/mcts_ctree_sampled.py   |   603 +
+ .../mcts/tree_search/mcts_ctree_stochastic.py      |   252 +
+ LightZero/lzero/mcts/tree_search/mcts_ptree.py     |   409 +
+ .../lzero/mcts/tree_search/mcts_ptree_sampled.py   |   241 +
+ .../mcts/tree_search/mcts_ptree_stochastic.py      |   255 +
+ LightZero/lzero/mcts/utils.py                      |   170 +
+ LightZero/lzero/model/__init__.py                  |     3 +
+ LightZero/lzero/model/alphazero_model.py           |   353 +
+ LightZero/lzero/model/common.py                    |  1327 +
+ LightZero/lzero/model/efficientzero_model.py       |   575 +
+ LightZero/lzero/model/efficientzero_model_mlp.py   |   475 +
+ LightZero/lzero/model/image_transform.py           |   107 +
+ LightZero/lzero/model/muzero_context_model.py      |   429 +
+ LightZero/lzero/model/muzero_model.py              |   544 +
+ LightZero/lzero/model/muzero_model_mlp.py          |   448 +
+ LightZero/lzero/model/muzero_rnn_full_obs_model.py |   651 +
+ .../lzero/model/sampled_efficientzero_model.py     |   657 +
+ .../lzero/model/sampled_efficientzero_model_mlp.py |   525 +
+ LightZero/lzero/model/sampled_muzero_model.py      |   442 +
+ LightZero/lzero/model/sampled_muzero_model_mlp.py  |   510 +
+ LightZero/lzero/model/sampled_unizero_model.py     |   235 +
+ LightZero/lzero/model/stochastic_muzero_model.py   |   841 +
+ .../lzero/model/stochastic_muzero_model_mlp.py     |   342 +
+ LightZero/lzero/model/tests/__init__.py            |     0
+ .../lzero/model/tests/test_alphazero_model.py      |   121 +
+ LightZero/lzero/model/tests/test_common.py         |    28 +
+ .../lzero/model/tests/test_efficientzero_model.py  |   157 +
+ LightZero/lzero/model/tests/test_muzero_model.py   |   142 +
+ .../tests/test_sampled_efficientzero_model.py      |   161 +
+ .../model/tests/test_stochastic_muzero_model.py    |    72 +
+ LightZero/lzero/model/unizero_model.py             |   264 +
+ .../lzero/model/unizero_world_models/README.md     |    81 +
+ .../lzero/model/unizero_world_models/README_zh.md  |    80 +
+ .../lzero/model/unizero_world_models/__init__.py   |     1 +
+ .../model/unizero_world_models/attention_map.py    |   130 +
+ .../lzero/model/unizero_world_models/kv_caching.py |   266 +
+ .../lzero/model/unizero_world_models/lpips.py      |   169 +
+ .../lzero/model/unizero_world_models/slicer.py     |   167 +
+ .../lzero/model/unizero_world_models/tokenizer.py  |   270 +
+ .../model/unizero_world_models/transformer.py      |   423 +
+ .../lzero/model/unizero_world_models/utils.py      |   305 +
+ .../model/unizero_world_models/visualize_utils.py  |   562 +
+ .../model/unizero_world_models/world_model.py      |  1831 ++
+ LightZero/lzero/model/utils.py                     |   163 +
+ LightZero/lzero/policy/__init__.py                 |     2 +
+ LightZero/lzero/policy/alphazero.py                |   443 +
+ LightZero/lzero/policy/efficientzero.py            |   806 +
+ LightZero/lzero/policy/gumbel_alphazero.py         |   456 +
+ LightZero/lzero/policy/gumbel_muzero.py            |   764 +
+ LightZero/lzero/policy/muzero.py                   |  1056 +
+ LightZero/lzero/policy/muzero_rnn_full_obs.py      |   783 +
+ LightZero/lzero/policy/random_policy.py            |   288 +
+ LightZero/lzero/policy/sampled_alphazero.py        |   567 +
+ LightZero/lzero/policy/sampled_efficientzero.py    |  1167 +
+ LightZero/lzero/policy/sampled_muzero.py           |  1124 +
+ LightZero/lzero/policy/sampled_unizero.py          |  1053 +
+ LightZero/lzero/policy/scaling_transform.py        |   170 +
+ LightZero/lzero/policy/stochastic_muzero.py        |   814 +
+ LightZero/lzero/policy/tests/__init__.py           |     0
+ LightZero/lzero/policy/tests/config/__init__.py    |     0
+ .../tests/config/atari_muzero_config_for_test.py   |    98 +
+ .../config/cartpole_muzero_config_for_test.py      |    74 +
+ .../tests/test_get_target_obs_index_in_step_k.py   |    73 +
+ .../lzero/policy/tests/test_scaling_transform.py   |    19 +
+ LightZero/lzero/policy/tests/test_utils.py         |   167 +
+ LightZero/lzero/policy/unizero.py                  |  1033 +
+ LightZero/lzero/policy/utils.py                    |   697 +
+ LightZero/lzero/reward_model/__init__.py           |     1 +
+ LightZero/lzero/reward_model/rnd_reward_model.py   |   337 +
+ LightZero/lzero/worker/__init__.py                 |     5 +
+ LightZero/lzero/worker/alphazero_collector.py      |   383 +
+ LightZero/lzero/worker/alphazero_evaluator.py      |   284 +
+ LightZero/lzero/worker/muzero_collector.py         |   843 +
+ LightZero/lzero/worker/muzero_evaluator.py         |   504 +
+ LightZero/lzero/worker/muzero_segment_collector.py |   799 +
+ LightZero/pyproject.toml                           |    48 +
+ LightZero/pytest.ini                               |     7 +
+ LightZero/requirements-build.txt                   |     4 +
+ LightZero/requirements-doc.txt                     |    19 +
+ LightZero/requirements-test.txt                    |    16 +
+ LightZero/requirements.txt                         |    12 +
+ LightZero/setup.py                                 |   144 +
+ LightZero/zoo/README.md                            |    43 +
+ LightZero/zoo/__init__.py                          |     0
+ LightZero/zoo/atari/__init__.py                    |     0
+ ...compute_normalized_mean_and_median_atari100k.py |   318 +
+ LightZero/zoo/atari/config/__init__.py             |     0
+ .../zoo/atari/config/atari_efficientzero_config.py |    98 +
+ .../atari/config/atari_efficientzero_ddp_config.py |   100 +
+ .../zoo/atari/config/atari_env_action_space_map.py |    30 +
+ .../zoo/atari/config/atari_gumbel_muzero_config.py |    83 +
+ LightZero/zoo/atari/config/atari_muzero_config.py  |   105 +
+ .../atari/config/atari_muzero_context_config.py    |   114 +
+ .../zoo/atari/config/atari_muzero_ddp_config.py    |   110 +
+ .../config/atari_muzero_rnn_fullobs_config.py      |   120 +
+ .../atari/config/atari_muzero_segment_config.py    |   136 +
+ .../zoo/atari/config/atari_muzero_stack1_config.py |    91 +
+ .../config/atari_muzero_stack1_context_config.py   |   112 +
+ .../atari_muzero_stack1_rnn_fullobs_config.py      |   113 +
+ .../zoo/atari/config/atari_rezero_ez_config.py     |    83 +
+ .../zoo/atari/config/atari_rezero_mz_config.py     |    91 +
+ .../config/atari_sampled_efficientzero_config.py   |    84 +
+ .../atari/config/atari_stochastic_muzero_config.py |    86 +
+ LightZero/zoo/atari/config/atari_unizero_config.py |   117 +
+ .../zoo/atari/config/atari_unizero_ddp_config.py   |   115 +
+ .../atari/config/atari_unizero_segment_config.py   |   140 +
+ .../config/atari_unizero_segment_ddp_config.py     |   147 +
+ .../atari/config/atari_unizero_stack4_config.py    |    83 +
+ LightZero/zoo/atari/entry/__init__.py              |     0
+ LightZero/zoo/atari/entry/atari_eval.py            |    75 +
+ LightZero/zoo/atari/entry/test_memory_usage.py     |   103 +
+ LightZero/zoo/atari/envs/__init__.py               |     1 +
+ LightZero/zoo/atari/envs/atari_lightzero_env.py    |   268 +
+ LightZero/zoo/atari/envs/atari_wrappers.py         |   317 +
+ LightZero/zoo/atari/read_atari_results_from_txt.py |   162 +
+ .../zoo/atari/tests/test_atari_lightzero_env.py    |    41 +
+ .../test_atari_lightzero_env_visualization.py      |    41 +
+ .../test_atari_sampled_efficientzero_config.py     |    89 +
+ LightZero/zoo/board_games/__init__.py              |     0
+ LightZero/zoo/board_games/alphabeta_pruning_bot.py |   270 +
+ LightZero/zoo/board_games/chess/config/__init__.py |     0
+ .../config/chess_alphazero_bot_mode_config.py      |   114 +
+ .../chess/config/chess_alphazero_sp_mode_config.py |   113 +
+ LightZero/zoo/board_games/chess/envs/__init__.py   |     0
+ LightZero/zoo/board_games/chess/envs/chess_env.py  |   484 +
+ .../board_games/chess/envs/chess_lightzero_env.py  |   373 +
+ .../board_games/chess/envs/eval_chess_env_human.py |    63 +
+ .../board_games/chess/envs/test_chess_env_auto.py  |   122 +
+ .../board_games/chess/envs/test_chess_env_human.py |    89 +
+ .../chess/envs/test_chess_lightzero_env.py         |   111 +
+ .../classic_search_algorithm/__init__.py           |     0
+ .../classic_search_algorithm/alphabeta_pruning.py  |    75 +
+ .../alphabeta_pruning_return_best_subtree.py       |    90 +
+ .../classic_search_algorithm/minimax_v0.py         |    41 +
+ .../classic_search_algorithm/minimax_v1.py         |    61 +
+ .../config/connect4_alphazero_bot_mode_config.py   |   101 +
+ .../config/connect4_alphazero_sp_mode_config.py    |   101 +
+ .../config/connect4_muzero_bot_mode_config.py      |    81 +
+ .../config/connect4_muzero_sp_mode_config.py       |    82 +
+ .../config/connect4_rezero_mz_bot_mode_config.py   |    94 +
+ LightZero/zoo/board_games/connect4/connect4.gif    |   Bin 0 -> 3344354 bytes
+ .../zoo/board_games/connect4/envs/connect4_env.py  |   722 +
+ .../zoo/board_games/connect4/envs/rule_bot.py      |   336 +
+ .../zoo/board_games/connect4/envs/test_bots.py     |   298 +
+ .../board_games/connect4/envs/test_connect4_env.py |   136 +
+ .../zoo/board_games/connect4/envs/test_rule_bot.py |   173 +
+ .../connect4/eval/connect4_alphazero_eval.py       |    62 +
+ .../connect4/eval/connect4_muzero_eval.py          |    60 +
+ LightZero/zoo/board_games/go/__init__.py           |     0
+ LightZero/zoo/board_games/go/config/__init__.py    |     0
+ .../go/config/go_alphazero_sp-mode_config.py       |     1 +
+ LightZero/zoo/board_games/go/envs/__init__.py      |     0
+ LightZero/zoo/board_games/go/envs/go_env.py        |   320 +
+ LightZero/zoo/board_games/go/envs/test_go_env.py   |    40 +
+ LightZero/zoo/board_games/gomoku/__init__.py       |     0
+ .../zoo/board_games/gomoku/config/__init__.py      |     0
+ .../config/gomoku_alphazero_bot_mode_config.py     |   113 +
+ .../config/gomoku_alphazero_sp_mode_config.py      |   114 +
+ .../gomoku_gumbel_alphazero_bot_mode_config.py     |   118 +
+ .../config/gomoku_gumbel_muzero_bot_mode_config.py |    92 +
+ .../gomoku/config/gomoku_muzero_bot_mode_config.py |    94 +
+ .../gomoku/config/gomoku_muzero_sp_mode_config.py  |    93 +
+ .../config/gomoku_rezero_mz_bot_mode_config.py     |    97 +
+ .../gomoku_sampled_alphazero_bot_mode_config.py    |   123 +
+ .../gomoku_sampled_alphazero_sp_mode_config.py     |   121 +
+ LightZero/zoo/board_games/gomoku/entry/__init__.py |     0
+ .../gomoku/entry/gomoku_alphazero_eval.py          |    61 +
+ .../gomoku/entry/gomoku_gumbel_muzero_eval.py      |    43 +
+ .../board_games/gomoku/entry/gomoku_muzero_eval.py |    43 +
+ .../gomoku/entry/gomoku_sampled_alphazero_eval.py  |    47 +
+ LightZero/zoo/board_games/gomoku/envs/__init__.py  |     0
+ .../gomoku/envs/get_done_winner_cython.cpp         | 27997 +++++++++++++++++++
+ .../gomoku/envs/get_done_winner_cython.pyx         |    68 +
+ .../zoo/board_games/gomoku/envs/gomoku_env.py      |   835 +
+ .../gomoku/envs/gomoku_human_vs_bot_UI.py          |   235 +
+ .../board_games/gomoku/envs/gomoku_rule_bot_v0.py  |   376 +
+ .../board_games/gomoku/envs/gomoku_rule_bot_v1.py  |   382 +
+ .../gomoku/envs/legal_actions_cython.cpp           | 27110 ++++++++++++++++++
+ .../gomoku/envs/legal_actions_cython.pyx           |    20 +
+ .../envs/test_gomoku_alphabeta_pruning_bot.py      |   135 +
+ .../zoo/board_games/gomoku/envs/test_gomoku_env.py |    94 +
+ .../gomoku/envs/test_gomoku_mcts_bot.py            |   188 +
+ .../gomoku/envs/test_gomoku_rule_bot_v0.py         |   130 +
+ .../gomoku/envs/test_gomoku_rule_bot_v1.py         |    58 +
+ LightZero/zoo/board_games/gomoku/envs/utils.py     |    36 +
+ LightZero/zoo/board_games/gomoku/test/__init__.py  |     0
+ .../gomoku/test/eval_get_done_winner.py            |   133 +
+ .../board_games/gomoku/test/eval_legal_actions.py  |   139 +
+ .../gomoku/test/test_get_done_winner_cython.py     |    65 +
+ .../gomoku/test/test_gomoku_env_legal_actions.py   |    80 +
+ .../gomoku/test/test_legal_actions_cython.py       |    47 +
+ LightZero/zoo/board_games/mcts_bot.py              |   483 +
+ LightZero/zoo/board_games/splendor/__init__.py     |     1 +
+ .../zoo/board_games/splendor/config/__init__.py    |     3 +
+ .../config/splendor_alphazero_sp_mode_config.py    |   116 +
+ .../zoo/board_games/splendor/envs/__init__.py      |     3 +
+ .../board_games/splendor/envs/splendor_lz_env.py   |   454 +
+ .../test_speed_win_rate_between_bots.py            |   554 +
+ LightZero/zoo/board_games/tictactoe/__init__.py    |     0
+ .../zoo/board_games/tictactoe/config/__init__.py   |     0
+ ...mmy_any_game_alphazero_self_play_mode_config.py |   102 +
+ ...any_game_alphazero_single_player_mode_config.py |   105 +
+ .../config/tictactoe_alphazero_bot_mode_config.py  |   103 +
+ .../tictactoe_alphazero_bot_mode_ddp_config.py     |   108 +
+ .../config/tictactoe_alphazero_sp_mode_config.py   |   100 +
+ .../tictactoe_alphazero_sp_mode_ddp_config.py      |   107 +
+ .../tictactoe_efficientzero_bot_mode_config.py     |    90 +
+ .../tictactoe_efficientzero_sp_mode_config.py      |    89 +
+ .../tictactoe_gumbel_muzero_bot_mode_config.py     |    87 +
+ .../config/tictactoe_muzero_bot_mode_config.py     |    87 +
+ .../config/tictactoe_muzero_sp_mode_config.py      |    86 +
+ .../tictactoe_sampled_alphazero_bot_mode_config.py |   104 +
+ .../tictactoe_sampled_alphazero_sp_mode_config.py  |   103 +
+ .../zoo/board_games/tictactoe/entry/__init__.py    |     0
+ .../tictactoe/entry/tictactoe_alphazero_eval.py    |    60 +
+ .../tictactoe/entry/tictactoe_muzero_eval.py       |    60 +
+ .../zoo/board_games/tictactoe/envs/__init__.py     |     0
+ .../tictactoe/envs/dummy_any_game_env.py           |   370 +
+ .../tictactoe/envs/get_done_winner_cython.cpp      | 27761 ++++++++++++++++++
+ .../tictactoe/envs/get_done_winner_cython.pyx      |    64 +
+ .../tictactoe/envs/legal_actions_cython.cpp        | 27091 ++++++++++++++++++
+ .../tictactoe/envs/legal_actions_cython.pyx        |    20 +
+ .../envs/test_tictactoe_alphabeta_prunning_bot.py  |   114 +
+ .../tictactoe/envs/test_tictactoe_env.py           |   100 +
+ .../tictactoe/envs/test_tictactoe_mcts_bot.py      |   174 +
+ .../tictactoe/envs/test_tictactoe_rule_bot_v0.py   |    42 +
+ .../board_games/tictactoe/envs/tictactoe_env.py    |   756 +
+ .../tictactoe/test/test_get_done_winner_cython.py  |    35 +
+ LightZero/zoo/box2d/__init__.py                    |     0
+ LightZero/zoo/box2d/bipedalwalker/__init__.py      |     0
+ .../zoo/box2d/bipedalwalker/config/__init__.py     |     0
+ ...bipedalwalker_cont_disc_efficientzero_config.py |   101 +
+ ...alker_cont_disc_sampled_efficientzero_config.py |   105 +
+ ...edalwalker_cont_sampled_efficientzero_config.py |    88 +
+ .../bipedalwalker_cont_sampled_muzero_config.py    |    85 +
+ .../bipedalwalker_cont_sampled_unizero_config.py   |    99 +
+ .../zoo/box2d/bipedalwalker/entry/__init__.py      |     0
+ .../bipedalwalker/entry/bipedalwalker_eval.py      |    78 +
+ LightZero/zoo/box2d/bipedalwalker/envs/__init__.py |     0
+ .../envs/bipedalwalker_cont_disc_env.py            |   184 +
+ .../box2d/bipedalwalker/envs/bipedalwalker_env.py  |   225 +
+ LightZero/zoo/box2d/lunarlander/__init__.py        |     0
+ LightZero/zoo/box2d/lunarlander/config/__init__.py |     0
+ .../lunarlander_cont_disc_efficientzero_config.py  |    96 +
+ ...ander_cont_disc_sampled_efficientzero_config.py |   100 +
+ ...unarlander_cont_sampled_efficientzero_config.py |    99 +
+ .../lunarlander_cont_sampled_muzero_config.py      |    82 +
+ .../lunarlander_cont_sampled_unizero_config.py     |   108 +
+ .../lunarlander_disc_efficientzero_config.py       |    95 +
+ .../lunarlander_disc_gumbel_muzero_config.py       |    97 +
+ .../config/lunarlander_disc_muzero_config.py       |    85 +
+ .../config/lunarlander_disc_rezero_ez_config.py    |    92 +
+ .../config/lunarlander_disc_rezero_mz_config.py    |    92 +
+ .../lunarlander_disc_stochastic_muzero_config.py   |    94 +
+ .../config/lunarlander_disc_unizero_config.py      |    97 +
+ LightZero/zoo/box2d/lunarlander/entry/__init__.py  |     0
+ .../box2d/lunarlander/entry/lunarlander_eval.py    |    78 +
+ LightZero/zoo/box2d/lunarlander/envs/__init__.py   |     1 +
+ .../lunarlander/envs/lunarlander_cont_disc_env.py  |   187 +
+ .../zoo/box2d/lunarlander/envs/lunarlander_env.py  |   225 +
+ .../box2d/lunarlander/envs/test_lunarlander_env.py |    50 +
+ .../bsuite/config/bsuite_efficientzero_config.py   |   102 +
+ .../zoo/bsuite/config/bsuite_muzero_config.py      |   105 +
+ .../config/bsuite_sampled_efficientzero_config.py  |   106 +
+ LightZero/zoo/bsuite/entry/bsuite_eval_config.py   |    77 +
+ LightZero/zoo/bsuite/envs/bsuite_lightzero_env.py  |   244 +
+ LightZero/zoo/bsuite/envs/check_bsuite_config.py   |    27 +
+ LightZero/zoo/classic_control/__init__.py          |     0
+ LightZero/zoo/classic_control/cartpole/__init__.py |     0
+ .../classic_control/cartpole/config/__init__.py    |     0
+ .../config/cartpole_efficientzero_config.py        |    89 +
+ .../config/cartpole_gumbel_muzero_config.py        |    92 +
+ .../cartpole/config/cartpole_muzero_config.py      |    94 +
+ .../cartpole/config/cartpole_rezero_mz_config.py   |    85 +
+ .../cartpole_sampled_efficientzero_config.py       |    93 +
+ .../config/cartpole_stochastic_muzero_config.py    |    84 +
+ .../cartpole/config/cartpole_unizero_config.py     |   103 +
+ .../zoo/classic_control/cartpole/entry/__init__.py |     0
+ .../cartpole/entry/cartpole_eval.py                |    56 +
+ .../zoo/classic_control/cartpole/envs/__init__.py  |     0
+ .../cartpole/envs/cartpole_lightzero_env.py        |   248 +
+ .../zoo/classic_control/mountain_car/__init__.py   |     0
+ .../config/mountain_car_muzero_config.py           |    82 +
+ .../classic_control/mountain_car/entry/__init__.py |     0
+ .../mountain_car/entry/mountain_car_eval.py        |    56 +
+ .../mountain_car/entry/visualize_mz_mtcar.ipynb    |   624 +
+ .../classic_control/mountain_car/envs/__init__.py  |     1 +
+ .../mountain_car/envs/mtcar_lightzero_env.py       |   137 +
+ .../mountain_car/envs/test_mtcar_env.py            |    35 +
+ LightZero/zoo/classic_control/pendulum/__init__.py |     0
+ .../classic_control/pendulum/config/__init__.py    |     0
+ .../pendulum_cont_disc_efficientzero_config.py     |    88 +
+ .../pendulum_cont_disc_gumbel_muzero_config.py     |    95 +
+ .../config/pendulum_cont_disc_muzero_config.py     |    94 +
+ ...dulum_cont_disc_sampled_efficientzero_config.py |    90 +
+ .../pendulum_cont_disc_stochastic_muzero_config.py |    94 +
+ .../config/pendulum_cont_disc_unizero_config.py    |    90 +
+ .../pendulum_cont_sampled_efficientzero_config.py  |    82 +
+ .../config/pendulum_cont_sampled_muzero_config.py  |    83 +
+ .../config/pendulum_cont_sampled_unizero_config.py |   113 +
+ .../zoo/classic_control/pendulum/entry/__init__.py |     0
+ .../pendulum/entry/pendulum_eval.py                |    56 +
+ .../zoo/classic_control/pendulum/envs/__init__.py  |     0
+ .../pendulum/envs/pendulum_lightzero_env.py        |   172 +
+ LightZero/zoo/dmc2gym/__init__.py                  |     0
+ .../dmc2gym/config/dmc2gym_pixels_sez_config.py    |   121 +
+ .../dmc2gym/config/dmc2gym_pixels_smz_config.py    |   117 +
+ .../config/dmc2gym_pixels_suz_segment_config.py    |   167 +
+ .../zoo/dmc2gym/config/dmc2gym_state_sez_config.py |   100 +
+ .../zoo/dmc2gym/config/dmc2gym_state_smz_config.py |    99 +
+ .../config/dmc2gym_state_suz_segment_config.py     |   168 +
+ .../zoo/dmc2gym/config/dmc_state_env_space_map.py  |    50 +
+ LightZero/zoo/dmc2gym/envs/__init__.py             |     1 +
+ .../zoo/dmc2gym/envs/dmc2gym_lightzero_env.py      |   505 +
+ LightZero/zoo/dmc2gym/envs/test_dmc2gym_env.py     |    48 +
+ LightZero/zoo/eval_benchmark.py                    |   266 +
+ LightZero/zoo/game_2048/__init__.py                |     0
+ .../zoo/game_2048/config/muzero_2048_config.py     |    92 +
+ .../config/stochastic_muzero_2048_config.py        |    93 +
+ LightZero/zoo/game_2048/entry/2048_bot_eval.py     |    53 +
+ LightZero/zoo/game_2048/entry/2048_eval.py         |    63 +
+ LightZero/zoo/game_2048/entry/__init__.py          |     0
+ LightZero/zoo/game_2048/envs/__init__.py           |     0
+ .../game_2048/envs/expectimax_search_based_bot.py  |   148 +
+ LightZero/zoo/game_2048/envs/game_2048_env.py      |   794 +
+ LightZero/zoo/game_2048/envs/test_game_2048_env.py |   182 +
+ LightZero/zoo/jericho/__init__.py                  |     0
+ .../zoo/jericho/configs/jericho_ppo_config.py      |    98 +
+ .../zoo/jericho/configs/jericho_unizero_config.py  |   222 +
+ .../jericho/configs/jericho_unizero_ddp_config.py  |   238 +
+ .../configs/jericho_unizero_segment_config.py      |   188 +
+ LightZero/zoo/jericho/envs/__init__.py             |     1 +
+ LightZero/zoo/jericho/envs/jericho_env.py          |   500 +
+ LightZero/zoo/jericho/envs/test_jericho_env.py     |    41 +
+ LightZero/zoo/memory/__init__.py                   |     0
+ LightZero/zoo/memory/config/__init__.py            |     0
+ .../memory/config/memory_efficientzero_config.py   |   102 +
+ .../zoo/memory/config/memory_muzero_config.py      |   114 +
+ .../zoo/memory/config/memory_muzero_rnd_config.py  |   141 +
+ .../config/memory_sampled_efficientzero_config.py  |   117 +
+ .../zoo/memory/config/memory_unizero_config.py     |   127 +
+ LightZero/zoo/memory/entry/__init__.py             |     0
+ LightZero/zoo/memory/entry/memory_eval.py          |    76 +
+ LightZero/zoo/memory/envs/__init__.py              |     0
+ LightZero/zoo/memory/envs/memory_lightzero_env.py  |   318 +
+ LightZero/zoo/memory/envs/pycolab_tvt/__init__.py  |     0
+ LightZero/zoo/memory/envs/pycolab_tvt/common.py    |   327 +
+ LightZero/zoo/memory/envs/pycolab_tvt/game.py      |    41 +
+ .../zoo/memory/envs/pycolab_tvt/human_player.py    |    70 +
+ .../zoo/memory/envs/pycolab_tvt/key_to_door.py     |   246 +
+ LightZero/zoo/memory/envs/pycolab_tvt/objects.py   |   127 +
+ LightZero/zoo/memory/envs/pycolab_tvt/readme.md    |     5 +
+ .../zoo/memory/envs/pycolab_tvt/visual_match.py    |   198 +
+ .../zoo/memory/envs/test_memory_lightzero_env.py   |   133 +
+ LightZero/zoo/memory/envs/test_render.py           |    79 +
+ LightZero/zoo/memory/key_to_door.gif               |   Bin 0 -> 2302 bytes
+ LightZero/zoo/memory/visual_match.gif              |   Bin 0 -> 2031 bytes
+ LightZero/zoo/metadrive/README.md                  |     5 +
+ .../metadrive_sampled_efficientzero_config.py      |   103 +
+ LightZero/zoo/minigrid/__init__.py                 |     0
+ LightZero/zoo/minigrid/config/__init__.py          |     0
+ .../config/minigrd_sampled_efficientzero_config.py |   114 +
+ .../config/minigrid_efficientzero_config.py        |    98 +
+ .../zoo/minigrid/config/minigrid_muzero_config.py  |   101 +
+ .../minigrid/config/minigrid_muzero_rnd_config.py  |   137 +
+ LightZero/zoo/minigrid/entry/__init__.py           |     0
+ LightZero/zoo/minigrid/entry/minigrid_eval.py      |    77 +
+ .../zoo/minigrid/envs/minigrid_lightzero_env.py    |   275 +
+ .../mujoco_disc_sampled_efficientzero_config.py    |   112 +
+ .../config/mujoco_sampled_efficientzero_config.py  |   110 +
+ .../zoo/mujoco/envs/mujoco_disc_lightzero_env.py   |   146 +
+ LightZero/zoo/mujoco/envs/mujoco_lightzero_env.py  |   142 +
+ LightZero/zoo/pooltool/README.md                   |   123 +
+ LightZero/zoo/pooltool/datatypes.py                |   226 +
+ LightZero/zoo/pooltool/image_representation.py     |   606 +
+ LightZero/zoo/pooltool/sum_to_three/__init__.py    |     0
+ .../zoo/pooltool/sum_to_three/config/__init__.py   |     0
+ .../sum_to_three/config/feature_plane_config.json  |    50 +
+ .../config/sum_to_three_image_obs_sez_config.py    |   107 +
+ .../config/sum_to_three_vector_obs_sac_config.py   |    55 +
+ .../config/sum_to_three_vector_obs_sez_config.py   |    98 +
+ .../pooltool/sum_to_three/envs/profile/speed.py    |    60 +
+ .../pooltool/sum_to_three/envs/sum_to_three_env.py |   401 +
+ .../sum_to_three/envs/test_sum_to_three_env.py     |   323 +
+ LightZero/zoo/pooltool/sum_to_three/envs/utils.py  |   195 +
+ LightZero/zoo/pooltool/test_datatypes.py           |   106 +
+ .../zoo/pooltool/test_image_representation.py      |    15 +
+ LightZero => LightZero_backup                      |     0
+ colab_compatibility_fix.py                         |    51 +
+ colab_setup.py                                     |    91 +
+ colab_training.py                                  |   100 +
+ .../formatted_total_config.py                      |   177 +
+ .../debug_test_seed0_250825_213118/git_diff.txt    |    29 +
+ .../debug_test_seed0_250825_213118/git_log.txt     |   119 +
+ .../log/buffer/buffer_logger.txt                   |     0
+ .../log/collector/collector_logger.txt             |     0
+ .../log/evaluator/evaluator_logger.txt             |     0
+ .../log/learner/learner_logger.txt                 |    61 +
+ .../debug_test_seed0_250825_213118/total_config.py |   177 +
+ .../formatted_total_config.py                      |   177 +
+ .../debug_test_seed0_250825_213311/git_diff.txt    |    29 +
+ .../debug_test_seed0_250825_213311/git_log.txt     |   119 +
+ .../log/buffer/buffer_logger.txt                   |   216 +
+ .../log/collector/collector_logger.txt             |     0
+ .../log/evaluator/evaluator_logger.txt             |     0
+ .../log/learner/learner_logger.txt                 |    61 +
+ .../debug_test_seed0_250825_213311/total_config.py |   177 +
+ .../formatted_total_config.py                      |   177 +
+ .../simple_fix_seed0_250826_203305/git_diff.txt    |    29 +
+ .../simple_fix_seed0_250826_203305/git_log.txt     |   119 +
+ .../log/buffer/buffer_logger.txt                   |    18 +
+ .../log/collector/collector_logger.txt             |     0
+ .../log/evaluator/evaluator_logger.txt             |     0
+ .../log/learner/learner_logger.txt                 |    61 +
+ .../simple_fix_seed0_250826_203305/total_config.py |   177 +
+ .../log/buffer/buffer_logger.txt                   |    18 +
+ .../formatted_total_config.py                      |   177 +
+ .../git_diff.txt                                   |    29 +
+ .../git_log.txt                                    |   119 +
+ .../log/buffer/buffer_logger.txt                   |    27 +
+ .../log/collector/collector_logger.txt             |     0
+ .../log/evaluator/evaluator_logger.txt             |     0
+ .../log/learner/learner_logger.txt                 |    61 +
+ .../total_config.py                                |   178 +
+ .../formatted_total_config.py                      |   177 +
+ .../git_diff.txt                                   |    29 +
+ .../git_log.txt                                    |   119 +
+ .../log/buffer/buffer_logger.txt                   |    18 +
+ .../log/collector/collector_logger.txt             |     0
+ .../log/evaluator/evaluator_logger.txt             |     0
+ .../log/learner/learner_logger.txt                 |    61 +
+ .../total_config.py                                |   178 +
+ fix_training_issues.py                             |   168 +
+ simple_training_fix.py                             |    98 +
+ 665 files changed, 302913 insertions(+)
+
+commit 503eaa9e99154fe8e56bd999296d28d39f266ffb
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Mon Aug 25 21:20:32 2025 -0400
+
+    lightzero looks working
+
+ .../formatted_total_config.py                      | 178 +++++++++++++++++++++
+ .../debug_test_seed0_250825_210958/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_210958/git_log.txt     |  60 +++++++
+ .../debug_test_seed0_250825_210958/total_config.py | 178 +++++++++++++++++++++
+ .../formatted_total_config.py                      | 178 +++++++++++++++++++++
+ .../debug_test_seed0_250825_211028/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211028/git_log.txt     |  60 +++++++
+ .../debug_test_seed0_250825_211028/total_config.py | 178 +++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211055/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211055/git_log.txt     |  60 +++++++
+ .../debug_test_seed0_250825_211055/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211142/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211142/git_log.txt     |  60 +++++++
+ .../debug_test_seed0_250825_211142/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211204/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211204/git_log.txt     |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../debug_test_seed0_250825_211204/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211314/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211314/git_log.txt     |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../debug_test_seed0_250825_211314/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211343/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211343/git_log.txt     |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../debug_test_seed0_250825_211343/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211531/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211531/git_log.txt     |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../debug_test_seed0_250825_211531/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../debug_test_seed0_250825_211642/git_diff.txt    |   6 +
+ .../debug_test_seed0_250825_211642/git_log.txt     |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |  27 ++++
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../debug_test_seed0_250825_211642/total_config.py | 177 ++++++++++++++++++++
+ .../formatted_total_config.py                      | 177 ++++++++++++++++++++
+ .../git_diff.txt                                   |   6 +
+ .../git_log.txt                                    |  60 +++++++
+ .../log/buffer/buffer_logger.txt                   |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 +++++++
+ .../total_config.py                                | 177 ++++++++++++++++++++
+ 64 files changed, 4597 insertions(+)
