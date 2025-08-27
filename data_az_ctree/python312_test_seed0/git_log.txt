@@ -1,0 +1,188 @@
+7541ab2
+
+commit 7541ab2d340638833f1102a0f5cf0ad5b0c885cb
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:47:09 2025 -0400
+
+    fix colab setup
+
+ colab_setup.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 60dac0f06029afdd90ee5339379301f005e276a8
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:44:52 2025 -0400
+
+    add colab support
+
+ LightZero/lzero/mcts/tree_search/mcts_ctree.py     |   24 +-
+ .../lzero/mcts/tree_search/mcts_ctree.py.backup    | 1147 ++++++++++++++++++++
+ README_COLAB.md                                    |  178 +++
+ colab_setup.py                                     |  309 ++++--
+ .../colab_test_seed0/ckpt/iteration_0.pth.tar      |  Bin 0 -> 34874388 bytes
+ .../colab_test_seed0/formatted_total_config.py     |  171 +++
+ data_az_ctree/colab_test_seed0/git_diff.txt        |  370 +++++++
+ data_az_ctree/colab_test_seed0/git_log.txt         |  907 ++++++++++++++++
+ .../colab_test_seed0/log/buffer/buffer_logger.txt  |   77 ++
+ .../log/collector/collector_logger.txt             |    0
+ .../log/evaluator/evaluator_logger.txt             |    0
+ .../log/learner/learner_logger.txt                 |   75 ++
+ data_az_ctree/colab_test_seed0/total_config.py     |  171 +++
+ fix_colab_ctree.py                                 |  206 ++++
+ train_splendor_colab.py                            |  300 +++++
+ 15 files changed, 3861 insertions(+), 74 deletions(-)
+
+commit 266e173bdabf1482a33b2d70297a63dd3a5fb355
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:28:33 2025 -0400
+
+    Clean up debug files and finalize working training
+    
+    - Remove all debug_*.py and test_*.py files
+    - Remove all temporary debug directories
+    - Keep working training script: train_splendor_working.py
+    - Add comprehensive fixes summary: FIXES_SUMMARY.md
+    
+    TRAINING NOW WORKS:
+    ✅ Episodes complete properly (turn limit enforced)
+    ✅ Buffer receives data (serialization fixed)
+    ✅ All core issues resolved
+    ✅ Realistic time estimates provided
+    
+    Ready for production use with train_splendor_working.py
+
+ FIXES_SUMMARY.md                                   |  77 ++++++++++
+ debug_collection_hang.py                           | 168 --------------------
+ debug_config_environment.py                        | 170 ---------------------
+ debug_episode_completion.py                        | 113 --------------
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ minimal_test/log/collector/collector_logger.txt    |   0
+ .../log/collector/collector_logger.txt             |   0
+ test_debug/log/collector/collector_logger.txt      |   0
+ test_training_with_timeout.py                      | 116 --------------
+ .../log/collector/collector_logger.txt             |   0
+ 17 files changed, 77 insertions(+), 567 deletions(-)
+
+commit a9c8c027a78e2209f2d265baf6ddb9af59b956e4
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Wed Aug 27 08:28:07 2025 -0400
+
+    lightzero training working
+
+ .../board_games/splendor/envs/splendor_lz_env.py   |  10 +
+ .../quick_test2_seed0/formatted_total_config.py    | 171 +++++
+ data_az_ctree/quick_test2_seed0/git_diff.txt       |   0
+ data_az_ctree/quick_test2_seed0/git_log.txt        | 839 +++++++++++++++++++++
+ .../quick_test2_seed0/log/buffer/buffer_logger.txt |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test2_seed0/total_config.py    | 171 +++++
+ .../quick_test3_seed0/formatted_total_config.py    | 171 +++++
+ data_az_ctree/quick_test3_seed0/git_diff.txt       |  21 +
+ data_az_ctree/quick_test3_seed0/git_log.txt        | 839 +++++++++++++++++++++
+ .../quick_test3_seed0/log/buffer/buffer_logger.txt |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test3_seed0/total_config.py    | 171 +++++
+ .../quick_test_seed0/formatted_total_config.py     | 171 +++++
+ data_az_ctree/quick_test_seed0/git_diff.txt        |   0
+ data_az_ctree/quick_test_seed0/git_log.txt         | 839 +++++++++++++++++++++
+ .../quick_test_seed0/log/buffer/buffer_logger.txt  |  18 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/quick_test_seed0/total_config.py     | 171 +++++
+ .../ckpt/iteration_0.pth.tar                       | Bin 0 -> 34874388 bytes
+ .../ckpt/iteration_50.pth.tar                      | Bin 0 -> 34874499 bytes
+ .../formatted_total_config.py                      | 171 +++++
+ .../quick_working_test_seed0/git_diff.txt          |  21 +
+ data_az_ctree/quick_working_test_seed0/git_log.txt | 839 +++++++++++++++++++++
+ .../log/buffer/buffer_logger.txt                   |  77 ++
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  76 ++
+ .../quick_working_test_seed0/total_config.py       | 171 +++++
+ .../timeout_test_seed0/formatted_total_config.py   | 171 +++++
+ data_az_ctree/timeout_test_seed0/git_diff.txt      |  21 +
+ data_az_ctree/timeout_test_seed0/git_log.txt       | 839 +++++++++++++++++++++
+ .../log/buffer/buffer_logger.txt                   |   9 +
+ .../log/collector/collector_logger.txt             |   0
+ .../log/evaluator/evaluator_logger.txt             |   0
+ .../log/learner/learner_logger.txt                 |  61 ++
+ data_az_ctree/timeout_test_seed0/total_config.py   | 171 +++++
+ debug_collection_hang.py                           | 168 +++++
+ debug_config_environment.py                        | 170 +++++
+ debug_episode_completion.py                        | 113 +++
+ .../log/collector/collector_logger.txt             |   0
+ test_training_with_timeout.py                      | 116 +++
+ train_splendor_working.py                          | 190 +++++
+ 49 files changed, 7195 insertions(+)
+
+commit 072f30d812f60e4c1de195b79422e65960975cea
+Author: Yiyang Shao <ys378@duke.edu>
+Date:   Tue Aug 26 21:10:51 2025 -0400
+
+    Fix core AlphaZero training issues
+    
+    MAJOR FIXES IMPLEMENTED:
+    
+    1. **Fixed SplendorState Serialization Issue**:
+       - Modified reset() and step() methods to return serializable numpy arrays instead of SplendorState objects in the 'board' field
+       - Fixed illegal action handler to use serializable board state
+       - All transitions now tensorize correctly
+    
+    2. **Fixed Turn Limit Enforcement**:
+       - Added proper turn limit enforcement in step() method
+       - Games now complete after max_turns instead of running infinitely
+       - Episodes complete in ~20 steps with 20-turn limit
+    
+    3. **Environment Manager Configuration**:
+       - Changed from 'subprocess' to 'base' environment manager to avoid multiprocessing issues
+       - Eliminates fork() deprecation warnings on macOS
+    
+    4. **MCTS Optimization**:
+       - Reduced MCTS simulations from 200 to reasonable numbers for testing
+       - Individual policy forward passes now take ~0.05s instead of hanging
+    
+    WHAT WORKS NOW:
+    ✅ Individual environment episodes complete properly (3-20s)
+    ✅ Individual policy components work fast
+    ✅ Transition processing and tensorization works
+    ✅ All serialization issues resolved
+    ✅ Turn limits properly enforced
+    
+    REMAINING ISSUES:
+    ❌ Environment registry conflicts in config system
+    ❌ Model parameter mismatches in direct tests
+    ❌ Full integration testing needed
+    
+    CORE PROBLEM SOLVED: The root cause of zero buffer statistics was that episodes never completed due to missing turn limit enforcement, combined with SplendorState serialization issues. Both are now fixed.
+    
+    Next: Resolve config system registry issues to enable full training.
+
+ .../config/splendor_alphazero_sp_mode_config.py    |   2 +-
+ .../board_games/splendor/envs/splendor_lz_env.py   |  44 ++++--
+ LightZero_backup                                   |   1 -
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ fix_training_issues.py                             | 168 ---------------------
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ .../log/collector/collector_logger.txt             |   0
+ minimal_test/log/collector/collector_logger.txt    |   0
+ simple_training_fix.py                             |  98 ------------
+ .../log/collector/collector_logger.txt             |   0
+ test_debug/log/collector/collector_logger.txt      |   0
+ .../log/collector/collector_logger.txt             |   0
+ 16 files changed, 35 insertions(+), 278 deletions(-)

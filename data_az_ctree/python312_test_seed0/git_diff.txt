@@ -1,0 +1,11 @@
+diff --git a/LightZero/lzero/mcts/ctree/ctree_efficientzero/__init__.py b/LightZero/lzero/mcts/ctree/ctree_efficientzero/__init__.py
+index e69de29..e2baee6 100644
+--- a/LightZero/lzero/mcts/ctree/ctree_efficientzero/__init__.py
++++ b/LightZero/lzero/mcts/ctree/ctree_efficientzero/__init__.py
+@@ -0,0 +1,6 @@
++# Safe import for Colab compatibility
++try:
++    from .ez_tree import *
++except ImportError:
++    # C++ extension not available, will use Python fallback
++    pass
