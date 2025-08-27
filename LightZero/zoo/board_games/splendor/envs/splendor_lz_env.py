@@ -366,6 +366,16 @@ class SplendorLightZeroEnv(BaseEnv):
             "winner": winner(self.state) if done else None,
         }
         
+        # Add eval_episode_return when episode is done (required by AlphaZero collector)
+        if done:
+            # eval_episode_return should be from Player 1's perspective (index 0)
+            scores = [player.prestige for player in self.state.players]
+            if len(scores) >= 2:
+                eval_episode_return = float(scores[0] - scores[1])
+            else:
+                eval_episode_return = float(scores[0])
+            info['eval_episode_return'] = eval_episode_return
+        
         return BaseEnvTimestep(obs, reward, done, info)
 
     def get_done_reward(self) -> Tuple[bool, Optional[float]]:
