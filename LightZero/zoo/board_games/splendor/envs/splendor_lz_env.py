@@ -128,17 +128,18 @@ class SplendorLightZeroEnv(BaseEnv):
         
         Returns:
             Tuple of (board_state, board_state_scale):
-            - board_state: Deep copy of the full game state (serializable for reset)
+            - board_state: Serializable representation of game state for MCTS reset
             - board_state_scale: Normalized observation vector for the neural network (224-dim)
         """
         if self.state is None:
             raise RuntimeError("Environment not initialized. Call reset() first.")
         
-        # board_state: deep copy of the full state for MCTS simulation
-        board_state = copy.deepcopy(self.state)
+        # CRITICAL FIX: board_state must be serializable for MCTS, not SplendorState object
+        # Use the encoded observation as the serializable board state
+        raw_obs = encode_observation(self.state)
+        board_state = raw_obs.astype(np.float32)  # Use serializable representation
         
         # board_state_scale: normalized observation for neural network
-        raw_obs = encode_observation(self.state)
         if self.scale:
             # Normalize the observation to [0, 1] range
             board_state_scale = self._normalize_observation(raw_obs)
@@ -237,8 +238,16 @@ class SplendorLightZeroEnv(BaseEnv):
             Initial observation dict
         """
         if init_state is not None:
-            # Reset to specific state (used by MCTS)
-            self.state = copy.deepcopy(init_state)
+            # CRITICAL FIX: Handle both SplendorState objects and serialized numpy arrays
+            if isinstance(init_state, np.ndarray):
+                # This is a serialized state from MCTS - create a fresh game instead
+                # TODO: In the future, we could implement state reconstruction from encoded observation
+                seed = random.randint(0, 2**31 - 1)
+                self.state = initial_state(num_players=self.num_players, seed=seed)
+                self.state.to_play = start_player_index
+            else:
+                # This is a SplendorState object - use it directly
+                self.state = copy.deepcopy(init_state)
         else:
             # Fresh game start
             seed = random.randint(0, 2**31 - 1)
@@ -253,11 +262,14 @@ class SplendorLightZeroEnv(BaseEnv):
         action_mask = np.array(legal_moves(self.state), dtype=np.int8)
         
         # Return observation in LightZero format
+        # Get serializable board state from current_state method
+        board_state, _ = self.current_state()
+        
         if self.battle_mode == 'self_play_mode':
             obs = {
                 'observation': scaled_obs,
                 'action_mask': action_mask,
-                'board': copy.deepcopy(self.state),
+                'board': board_state,  # Use serializable board state
                 'current_player_index': self.current_player,
                 'to_play': self.current_player
             }
@@ -265,7 +277,7 @@ class SplendorLightZeroEnv(BaseEnv):
             obs = {
                 'observation': scaled_obs,
                 'action_mask': action_mask, 
-                'board': copy.deepcopy(self.state),
+                'board': board_state,  # Use serializable board state
                 'current_player_index': self.current_player,
                 'to_play': -1
             }
@@ -295,10 +307,13 @@ class SplendorLightZeroEnv(BaseEnv):
             _, scaled_obs = self.current_state()
             action_mask = np.array(legal_moves(self.state), dtype=np.int8)
             
+            # CRITICAL FIX: Use serializable board state for illegal actions too
+            board_state, _ = self.current_state()
+            
             obs = {
                 'observation': scaled_obs,
                 'action_mask': action_mask,
-                'board': copy.deepcopy(self.state),
+                'board': board_state,  # Use serializable board state
                 'current_player_index': self.current_player,
                 'to_play': self.current_player if self.battle_mode == 'self_play_mode' else -1
             }
@@ -311,6 +326,12 @@ class SplendorLightZeroEnv(BaseEnv):
         # Update player tracking
         self.current_player = self.state.to_play
         self.next_player = (self.current_player + 1) % self.num_players
+        
+        # CRITICAL FIX: Enforce turn limit to prevent infinite games
+        if self.state.turn_count >= self.max_turns:
+            # Make a copy and set game_over to trigger termination
+            from dataclasses import replace
+            self.state = replace(self.state, game_over=True, turn_limit_reached=True)
         
         # Check if game is terminal
         done = is_terminal(self.state)
@@ -329,10 +350,13 @@ class SplendorLightZeroEnv(BaseEnv):
         _, scaled_obs = self.current_state()
         action_mask = np.array(legal_moves(self.state), dtype=np.int8) if not done else np.zeros(self.total_num_actions, dtype=np.int8)
         
+        # Get serializable board state from current_state method  
+        board_state, _ = self.current_state()
+        
         obs = {
             'observation': scaled_obs,
             'action_mask': action_mask,
-            'board': copy.deepcopy(self.state),
+            'board': board_state,  # Use serializable board state
             'current_player_index': self.current_player,
             'to_play': self.current_player if self.battle_mode == 'self_play_mode' else -1
         }

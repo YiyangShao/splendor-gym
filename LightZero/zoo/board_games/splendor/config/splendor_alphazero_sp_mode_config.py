@@ -94,7 +94,7 @@ splendor_alphazero_create_config = dict(
         type='splendor',
         import_names=['zoo.board_games.splendor.envs.splendor_lz_env'],
     ),
-    env_manager=dict(type='subprocess'),
+    env_manager=dict(type='base'),  # Changed from 'subprocess' to avoid caching issues
     policy=dict(
         type='alphazero',
         import_names=['lzero.policy.alphazero'],
