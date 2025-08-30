@@ -193,13 +193,12 @@ class CheckpointManager:
 def make_env(seed: int, opponent_policy=None, opponent_supplier=None, 
              random_starts: bool = False):
     """Unified environment creation function."""
+    # Default to random opponent if nothing specified
+    if opponent_policy is None and opponent_supplier is None:
+        opponent_policy = random_opponent
+        
     def thunk():
         env = SplendorEnv(num_players=2)
-        
-        # Default to random opponent if nothing specified
-        if opponent_policy is None and opponent_supplier is None:
-            opponent_policy = random_opponent
-            
         env = SelfPlayWrapper(
             env, 
             opponent_policy=opponent_policy or random_opponent,
