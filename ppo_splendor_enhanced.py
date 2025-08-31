@@ -18,11 +18,11 @@ from splendor_gym.scripts.eval_suite import (
     random_opponent,
     greedy_opponent_v1,
     basic_priority_opponent,
+    eval_vs_opponent,
 )
 from training_utils import (
     TrainingLogger,
     CheckpointManager,
-    run_evaluation_suite,
     frozen_policy_from,
     linear_lr_schedule,
 )
@@ -123,6 +123,54 @@ class EnhancedActorCritic(nn.Module):
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), value
+
+
+def enhanced_model_greedy_policy_from(model: nn.Module, device: torch.device) -> callable:
+    """Create a greedy policy from enhanced model that works with enhanced observations."""
+    model.eval()
+    @torch.no_grad()
+    def _policy(obs, info):
+        obs_t = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+        mask = torch.tensor(info["action_mask"], dtype=torch.float32, device=device).unsqueeze(0)
+        logits = model.actor(obs_t)  # Use compatibility property
+        logits = logits.masked_fill(mask < 0.5, float("-inf"))
+        action = torch.argmax(logits, dim=-1).item()
+        return int(action)
+    return _policy
+
+
+def run_enhanced_evaluation_suite(agent: nn.Module, device: torch.device, rng: np.random.RandomState,
+                                n_games: int, update_seed: int = 0) -> dict:
+    """Run evaluation against all opponent types using enhanced environment."""
+    policy_eval = enhanced_model_greedy_policy_from(agent, device)
+    
+    results = {}
+    opponents = [
+        ("random", random_opponent),
+        ("greedy_v1", greedy_opponent_v1), 
+        ("basic", basic_priority_opponent)
+    ]
+    
+    def make_enhanced_env_with_opponent(opponent):
+        """Create enhanced environment with given opponent."""
+        def env_fn():
+            env = EnhancedSplendorEnv()
+            from splendor_gym.wrappers.selfplay import SelfPlayWrapper
+            return SelfPlayWrapper(env, opponent_policy=opponent, random_starts=True)
+        return env_fn
+    
+    for i, (name, opponent) in enumerate(opponents):
+        env_fn = make_enhanced_env_with_opponent(opponent)
+        results[name] = eval_vs_opponent(env_fn, policy_eval, n_games=n_games, 
+                                       seed=update_seed + i)
+    
+    # Self-play evaluation
+    opp_self = enhanced_model_greedy_policy_from(agent, device)
+    env_fn = make_enhanced_env_with_opponent(opp_self)
+    results["self_play"] = eval_vs_opponent(env_fn, policy_eval, n_games=n_games,
+                                          seed=update_seed + 3)
+    
+    return results
 
 
 def make_enhanced_env(seed: int, opponent_supplier=None, opponent_policy=None):
@@ -408,9 +456,9 @@ def main():
             print(f"  Explained Var: {explained_var:.4f}")
             print(f"  Avg Reward: {np.mean(rewards_arr):.4f}")
             
-            # Run evaluation (reuse from training_utils)
+            # Run evaluation using enhanced environment
             try:
-                results = run_evaluation_suite(agent, device, rng, args.eval_games, update)
+                results = run_enhanced_evaluation_suite(agent, device, rng, args.eval_games, update)
                 logger.log_evaluation_results(results, global_step)
                 
                 print(f"  Win vs Random: {results['random']['win_rate']:.3f}")
