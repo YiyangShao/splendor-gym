@@ -51,7 +51,7 @@ def eval_games(num_games: int, model_path: str):
 				else: draws += 1
 				break
 		base = env.env
-		turns.append(base.state.turn_count / 2.0)
+		turns.append(base.state.turn_count)
 	avg_turns = float(np.mean(turns)) if turns else 0.0
 	print(f"vs NobleStrategy — games={num_games} win={wins} draw={draws} loss={losses} winrate={wins/num_games:.2%} avg_turns={avg_turns:.2f}")
 

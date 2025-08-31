@@ -187,7 +187,7 @@ def eval_vs_opponent(make_env: Callable[[], Any], model_policy: Callable, n_game
 				break
 		# Stats
 		base = env.env
-		turns.append(base.state.turn_count / 2.0)
+		turns.append(base.state.turn_count)
 		prev_idx = (base.state.to_play - 1) % base.state.num_players
 		prestige.append(base.state.players[prev_idx].prestige)
 		env.close()

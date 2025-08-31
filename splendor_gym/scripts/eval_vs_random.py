@@ -54,7 +54,7 @@ def eval_games(num_games: int, model_path: str | None):
 				break
 		# collect turns from base env
 		base = env.env
-		turns.append(base.state.turn_count / 2.0)
+		turns.append(base.state.turn_count)
 		if reward > 0:
 			wins += 1
 		elif reward < 0:
