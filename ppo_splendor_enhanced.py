@@ -75,6 +75,35 @@ class EnhancedActorCritic(nn.Module):
         # Initialize weights
         self.apply(self._init_weights)
     
+    # Compatibility properties for evaluation scripts
+    @property
+    def actor(self):
+        """Compatibility property for evaluation scripts that expect model.actor."""
+        class CompatibilityActor(nn.Module):
+            def __init__(self, parent):
+                super().__init__()
+                self.parent = parent
+            
+            def forward(self, x):
+                features = self.parent.shared_backbone(x)
+                return self.parent.actor_head(features)
+        
+        return CompatibilityActor(self)
+    
+    @property  
+    def critic(self):
+        """Compatibility property for evaluation scripts that expect model.critic."""
+        class CompatibilityCritic(nn.Module):
+            def __init__(self, parent):
+                super().__init__()
+                self.parent = parent
+            
+            def forward(self, x):
+                features = self.parent.shared_backbone(x)
+                return self.parent.critic_head(features)
+        
+        return CompatibilityCritic(self)
+    
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.orthogonal_(module.weight, gain=0.01 if module == self.actor_head[-1] else 1.0)
@@ -185,8 +214,12 @@ def main():
     
     obs_t, info = envs.reset()
     obs[:] = obs_t
-    for i in range(args.num_envs):
-        masks[i] = info[i]["action_mask"]
+    if isinstance(info, dict) and "action_mask" in info:
+        am = info["action_mask"]
+        masks[:] = am if isinstance(am, np.ndarray) and am.shape == (args.num_envs, TOTAL_ACTIONS) else np.stack([am[i] for i in range(args.num_envs)], axis=0)
+    else:
+        for i in range(args.num_envs):
+            masks[i] = info[i]["action_mask"]
     
     # Training setup
     logger = TrainingLogger(args.log_dir, track=args.track)
@@ -231,8 +264,13 @@ def main():
             next_obs, rewards, terms, truncs, infos = envs.step(actions)
             
             # Update masks from info
-            for i in range(args.num_envs):
-                masks[i] = infos[i]["action_mask"]
+            if isinstance(infos, dict) and "action_mask" in infos:
+                am = infos["action_mask"]
+                next_masks = am if isinstance(am, np.ndarray) and am.shape == (args.num_envs, TOTAL_ACTIONS) else np.stack([am[i] for i in range(args.num_envs)], axis=0)
+            else:
+                next_masks = np.zeros_like(masks)
+                for i in range(args.num_envs):
+                    next_masks[i] = infos[i]["action_mask"]
             
             # Store rollout data
             obs_buf.append(obs.copy())
@@ -244,6 +282,7 @@ def main():
             terminals_buf.append(terms.copy())
             
             obs = next_obs
+            masks = next_masks
             global_step += args.num_envs
         
         # GAE calculation (same as before)
