@@ -173,6 +173,101 @@ def run_enhanced_evaluation_suite(agent: nn.Module, device: torch.device, rng: n
     return results
 
 
+def create_enhanced_plot(logger, results: dict, global_step: int, update: int, num_updates: int):
+    """Create enhanced visualization plots for detailed analysis."""
+    try:
+        import matplotlib.pyplot as plt
+        
+        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+        
+        # Turn efficiency comparison
+        ax = axes[0,0]
+        opponents = ['random', 'greedy_v1', 'basic', 'self_play']
+        turns = [results[opp]['avg_turns'] for opp in opponents if opp in results]
+        win_rates = [results[opp]['win_rate'] for opp in opponents if opp in results]
+        
+        colors = ['red', 'orange', 'green', 'blue'][:len(turns)]
+        scatter = ax.scatter(turns, win_rates, c=colors, s=100, alpha=0.7)
+        
+        # Add labels for each point
+        for i, opp in enumerate(opponents[:len(turns)]):
+            ax.annotate(opp, (turns[i], win_rates[i]), xytext=(5, 5), 
+                       textcoords='offset points', fontsize=9)
+        
+        ax.set_xlabel('Average Game Length (turns)')
+        ax.set_ylabel('Win Rate')
+        ax.set_title('Win Rate vs Game Length')
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(left=0)
+        ax.set_ylim(0, 1)
+        
+        # Training progress over time
+        ax = axes[0,1]
+        progress = update / num_updates
+        ax.bar(['Progress'], [progress], color='green', alpha=0.7)
+        ax.bar(['Remaining'], [1-progress], bottom=[progress], color='lightgray', alpha=0.7)
+        ax.set_ylim(0, 1)
+        ax.set_title(f'Training Progress ({update}/{num_updates})')
+        ax.set_ylabel('Completion')
+        
+        # Performance trend (if we have history)
+        ax = axes[1,0]
+        if hasattr(logger.history, 'wr_rand') and len(logger.history.wr_rand) > 1:
+            steps = logger.history.steps
+            ax.plot(steps, logger.history.wr_rand, 'r-', label='vs Random', linewidth=2)
+            ax.plot(steps, logger.history.wr_basic, 'g-', label='vs Basic', linewidth=2)
+            ax.set_xlabel('Training Steps')
+            ax.set_ylabel('Win Rate')
+            ax.set_title('Performance Trends')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(0, 1)
+        else:
+            ax.text(0.5, 0.5, 'Insufficient data\nfor trend analysis', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
+            ax.set_title('Performance Trends')
+        
+        # Game statistics summary
+        ax = axes[1,1]
+        ax.axis('off')
+        
+        # Create summary statistics text
+        stats_text = f"""Enhanced PPO Training Summary
+        
+Update: {update:,} / {num_updates:,}
+Step: {global_step:,}
+
+Current Performance:
+• vs Random:  {results.get('random', {}).get('win_rate', 0):.1%} ({results.get('random', {}).get('avg_turns', 0):.1f} turns)
+• vs Basic:   {results.get('basic', {}).get('win_rate', 0):.1%} ({results.get('basic', {}).get('avg_turns', 0):.1f} turns)  
+• vs Greedy:  {results.get('greedy_v1', {}).get('win_rate', 0):.1%} ({results.get('greedy_v1', {}).get('avg_turns', 0):.1f} turns)
+• Self-play:  {results.get('self_play', {}).get('win_rate', 0):.1%} ({results.get('self_play', {}).get('avg_turns', 0):.1f} turns)
+
+Game Efficiency:
+• Fastest wins vs: {min(opponents[:len(turns)], key=lambda x: results[x]['avg_turns']) if turns else 'N/A'}
+• Strongest opponent: {opponents[win_rates.index(min(win_rates))] if win_rates else 'N/A'}
+"""
+        
+        ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        
+        fig.suptitle(f'Enhanced Splendor PPO Training Analysis - Step {global_step:,}', fontsize=14)
+        fig.tight_layout()
+        
+        # Save the enhanced plot
+        enhanced_plot_path = os.path.join(logger.log_dir, f"enhanced_analysis_{logger.run_start_ts}.png")
+        enhanced_plot_latest = os.path.join(logger.log_dir, "enhanced_analysis.png")
+        fig.savefig(enhanced_plot_path, dpi=150, bbox_inches='tight')
+        fig.savefig(enhanced_plot_latest, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        print(f"  Enhanced plot saved: enhanced_analysis.png")
+        
+    except Exception as e:
+        print(f"  Enhanced plotting failed: {e}")
+
+
 def make_enhanced_env(seed: int, opponent_supplier=None, opponent_policy=None):
     """Create enhanced Splendor environment.""" 
     def thunk():
