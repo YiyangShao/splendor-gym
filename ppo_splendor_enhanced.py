@@ -459,11 +459,32 @@ def main():
             # Run evaluation using enhanced environment
             try:
                 results = run_enhanced_evaluation_suite(agent, device, rng, args.eval_games, update)
-                logger.log_evaluation_results(results, global_step)
                 
-                print(f"  Win vs Random: {results['random']['win_rate']:.3f}")
-                print(f"  Win vs Basic: {results['basic']['win_rate']:.3f}")
+                # Log results and update history
+                logger.log_evaluation_results(results, global_step)
+                logger.update_history(
+                    global_step, results, 
+                    optimizer.param_groups[0]["lr"],
+                    policy_loss.item(), 
+                    value_loss.item(),
+                    entropy.mean().item()
+                )
+                
+                # Create and save plots
+                logger.create_summary_plot(global_step)
+                create_enhanced_plot(logger, results, global_step, update, num_updates)
+                
+                # Enhanced console output with turn data
+                print(f"  Win vs Random: {results['random']['win_rate']:.3f} (avg turns: {results['random']['avg_turns']:.1f})")
+                print(f"  Win vs Basic: {results['basic']['win_rate']:.3f} (avg turns: {results['basic']['avg_turns']:.1f})")
+                print(f"  Win vs Greedy: {results['greedy_v1']['win_rate']:.3f} (avg turns: {results['greedy_v1']['avg_turns']:.1f})")
+                print(f"  Self-play: {results['self_play']['win_rate']:.3f} (avg turns: {results['self_play']['avg_turns']:.1f})")
                 print(f"  Pool size: {len(pool)}")
+                
+                # Save evaluation checkpoint
+                latest_path, ts_path = checkpoint_manager.save_checkpoint(agent)
+                print(f"  Saved: {os.path.basename(latest_path)}")
+                
             except Exception as e:
                 print(f"  Evaluation failed: {e}")
         

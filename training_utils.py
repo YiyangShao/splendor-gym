@@ -129,10 +129,15 @@ class TrainingLogger:
             ax.plot(self.history.steps, self.history.turns_greedy1, label="greedy_v1") 
             ax.plot(self.history.steps, self.history.turns_basic, label="basic_priority")
             ax.plot(self.history.steps, self.history.turns_self, label="self_play")
-            ax.set_title("Avg Turns (pair-moves)")
+            ax.set_title("Avg Turns")
             ax.set_xlabel("steps")
             ax.set_ylabel("turns")
             ax.legend()
+            
+            # Add turn efficiency analysis
+            if len(self.history.turns_rand) > 1:
+                recent_turns = np.mean(self.history.turns_rand[-5:]) if len(self.history.turns_rand) >= 5 else self.history.turns_rand[-1]
+                ax.axhline(y=recent_turns, color='red', linestyle='--', alpha=0.5, label=f'Recent avg: {recent_turns:.1f}')
             
             # Losses subplot
             ax = axes[1,0]
