@@ -287,18 +287,21 @@ def apply_action(state: SplendorState, action: int) -> SplendorState:
 	if player.prestige >= 15:
 		next_state.game_over = True
 
-	# Advance turn
-	next_state.turn_count += 1
+	# Advance turn - simple round-based system
+	next_state.move_count += 1
 	next_state.to_play = (next_state.to_play + 1) % next_state.num_players
+	
+	# Calculate turn number: every 2 moves = 1 full turn
+	next_state.turn_count = (next_state.move_count // 2) + 1
 
-	# Turn limit: 100 pair turns => 200 half-turns. If reached and wrapped to player 0, mark draw.
-	if next_state.turn_count >= 200 and next_state.to_play == 0:
+	# Turn limit: 100 full rounds. If reached, mark draw.
+	if next_state.turn_count >= 100:
 		next_state.game_over = True
 		next_state.turn_limit_reached = True
 		next_state.winner_index = None
 		return next_state
 
-	# If end triggered and wrapped to player 0, pick winner
+	# If end triggered and we completed a full round (both players played), pick winner
 	if next_state.game_over and next_state.to_play == 0:
 		_winner_index = compute_winner(next_state)
 		next_state.winner_index = _winner_index

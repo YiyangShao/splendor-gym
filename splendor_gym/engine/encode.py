@@ -66,10 +66,10 @@ def encode_buy_reserved_index(slot: int) -> int:
 # - Board 12 cards × (present1, tier1, points1, color_onehot5, cost5) => 12 x 13 = 156
 # - Nobles up to 5 × (present1, req5) => 5 x 6 = 30 (we pad to 5)
 # - Deck sizes (3)
-# - turn_count (1), to_play (1), round_over_flag (1)
-# Total length: 6 + (6+5+1+1) + (6+5+1+1) + 156 + 30 + 3 + 3 = 6 + 13 + 13 + 156 + 30 + 3 + 3 = 224
+# - turn_count (1), to_play (1), move_count (1), round_over_flag (1)
+# Total length: 6 + (6+5+1+1) + (6+5+1+1) + 156 + 30 + 3 + 4 = 6 + 13 + 13 + 156 + 30 + 3 + 4 = 225
 
-OBSERVATION_DIM = 224
+OBSERVATION_DIM = 225
 
 
 def encode_observation(state) -> np.ndarray:
@@ -119,5 +119,6 @@ def encode_observation(state) -> np.ndarray:
 	# misc
 	vec.append(state.turn_count)
 	vec.append(state.to_play)
+	vec.append(state.move_count)  # Add move count info
 	vec.append(1 if (state.game_over and state.to_play == 0) else 0)
 	return np.array(vec, dtype=np.int32) 

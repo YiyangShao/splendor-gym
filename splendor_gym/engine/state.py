@@ -79,7 +79,8 @@ class SplendorState:
 	decks: Dict[int, List[Card]]  # tier -> remaining deck top at end
 	nobles: List[Optional[Noble]]  # visible nobles (None if taken)
 	to_play: int = 0
-	turn_count: int = 0
+	turn_count: int = 1  # Now represents full rounds (both players move)
+	move_count: int = 0  # Total individual moves made
 	game_over: bool = False
 	winner_index: Optional[int] = None
 	turn_limit_reached: bool = False
@@ -95,6 +96,7 @@ class SplendorState:
 			nobles=list(self.nobles),
 			to_play=self.to_play,
 			turn_count=self.turn_count,
+			move_count=self.move_count,
 			game_over=self.game_over,
 			winner_index=self.winner_index,
 			turn_limit_reached=self.turn_limit_reached,
@@ -200,7 +202,8 @@ def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
 		decks=decks,
 		nobles=nobles_visible,
 		to_play=0,
-		turn_count=0,
+		turn_count=1,   # Start at turn 1 (first full round)
+		move_count=0,   # Start with no moves made
 		game_over=False,
 		winner_index=None,
 		turn_limit_reached=False,
