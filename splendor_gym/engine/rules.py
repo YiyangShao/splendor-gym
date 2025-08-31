@@ -34,26 +34,7 @@ def initial_state(num_players: int = 2, seed: int = 0) -> SplendorState:
 	return _initial_state(num_players=num_players, seed=seed)
 
 
-def _partial_take3_index_for_available(available: List[int]) -> Optional[int]:
-	# Deterministic mapping for 2 or 1 available colors to a single TAKE3 index
-	if len(available) >= 3:
-		return None
-	colors = sorted(available)
-	if len(colors) == 2:
-		# choose smallest third color not in available
-		third = next(i for i in range(5) if i not in colors)
-		triplet = tuple(sorted([colors[0], colors[1], third]))
-	elif len(colors) == 1:
-		# choose two smallest others
-		others = [i for i in range(5) if i != colors[0]]
-		others.sort()
-		triplet = tuple(sorted([colors[0], others[0], others[1]]))
-	else:
-		return None
-	try:
-		return TAKE3_OFFSET + TAKE3_COMBOS.index(triplet)
-	except ValueError:
-		return None
+# Removed complex mapping logic - no longer needed with simplified approach
 
 
 def legal_moves(state: SplendorState) -> List[int]:
@@ -61,17 +42,20 @@ def legal_moves(state: SplendorState) -> List[int]:
 	player = state.players[state.to_play]
 	bank = state.bank
 
-	available_colors = [i for i in range(5) if bank[i] >= 1]
-	if len(available_colors) >= 3:
-		# Take-3: need at least 1 of each distinct color in the combo
-		for idx, (a, b, c) in enumerate(TAKE3_COMBOS):
-			if bank[a] >= 1 and bank[b] >= 1 and bank[c] >= 1:
+	available_colors = set([i for i in range(5) if bank[i] >= 1])
+	
+	# Simplified Take-3 logic: action is legal if available colors are subset of action colors
+	for idx, (a, b, c) in enumerate(TAKE3_COMBOS):
+		action_colors = set([a, b, c])
+		
+		if len(available_colors) >= 3:
+			# All 3 action colors must be available in bank
+			if action_colors.issubset(available_colors):
 				mask[TAKE3_OFFSET + idx] = 1
-	elif len(available_colors) > 0:
-		# Reduced-color take: exactly one TAKE3 index enabled
-		mapped = _partial_take3_index_for_available(available_colors)
-		if mapped is not None:
-			mask[mapped] = 1
+		elif len(available_colors) >= 1:
+			# Available colors must be subset of action colors  
+			if available_colors.issubset(action_colors):
+				mask[TAKE3_OFFSET + idx] = 1
 
 	# Take-2: need at least 4 of that color in bank
 	for i in range(5):
@@ -215,25 +199,15 @@ def apply_action(state: SplendorState, action: int) -> SplendorState:
 	bank = next_state.bank
 
 	if TAKE3_OFFSET <= action < TAKE3_OFFSET + TAKE3_COUNT:
-		# Take-3 (overloaded for reduced-color states)
+		# Take-3: take only the colors that are both specified by action and available in bank
 		idx = action - TAKE3_OFFSET
-		available = [i for i in range(5) if bank[i] >= 1]
-		if len(available) >= 3:
-			a, b, c = TAKE3_COMBOS[idx]
-			for i in (a, b, c):
-				bank[i] -= 1
-				player.tokens[i] += 1
-		elif len(available) == 2:
-			for i in available:
-				bank[i] -= 1
-				player.tokens[i] += 1
-		elif len(available) == 1:
-			i = available[0]
-			bank[i] -= 1
-			player.tokens[i] += 1
-		else:
-			# no-op if no tokens available (shouldn't happen when mask was obeyed)
-			pass
+		a, b, c = TAKE3_COMBOS[idx]
+		action_colors = [a, b, c]
+		
+		for color in action_colors:
+			if bank[color] >= 1:
+				bank[color] -= 1
+				player.tokens[color] += 1
 	elif TAKE2_OFFSET <= action < TAKE2_OFFSET + TAKE2_COUNT:
 		# Take-2
 		color_index = action - TAKE2_OFFSET
