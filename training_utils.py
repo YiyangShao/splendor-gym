@@ -196,7 +196,7 @@ class CheckpointManager:
 
 
 def make_env(seed: int, opponent_policy=None, opponent_supplier=None, 
-             random_starts: bool = False):
+             random_starts: bool = False, use_dual_step: bool = False, use_dual_player: bool = True):
     """Unified environment creation function."""
     # Default to random opponent if nothing specified
     if opponent_policy is None and opponent_supplier is None:
@@ -204,12 +204,31 @@ def make_env(seed: int, opponent_policy=None, opponent_supplier=None,
         
     def thunk():
         env = SplendorEnv(num_players=2)
-        env = SelfPlayWrapper(
-            env, 
-            opponent_policy=opponent_policy or random_opponent,
-            opponent_supplier=opponent_supplier,
-            random_starts=random_starts
-        )
+        
+        if use_dual_player:
+            # Use native dual-step wrapper (2x env.step calls combined efficiently)
+            from splendor_gym.wrappers.dual_step_native import DualStepNativeWrapper
+            env = DualStepNativeWrapper(
+                env,
+                opponent_policy=opponent_policy or random_opponent,
+                opponent_supplier=opponent_supplier,
+                random_starts=random_starts
+            )
+        elif use_dual_step:
+            from splendor_gym.wrappers.dual_step_selfplay import DualStepSelfPlayWrapper
+            env = DualStepSelfPlayWrapper(
+                env, 
+                opponent_policy=opponent_policy or random_opponent,
+                opponent_supplier=opponent_supplier,
+                random_starts=random_starts
+            )
+        else:
+            env = SelfPlayWrapper(
+                env, 
+                opponent_policy=opponent_policy or random_opponent,
+                opponent_supplier=opponent_supplier,
+                random_starts=random_starts
+            )
         env.reset(seed=seed)
         return env
     return thunk

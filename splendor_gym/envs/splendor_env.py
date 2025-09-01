@@ -114,6 +114,8 @@ class SplendorEnv(gym.Env):
 		
 		return rewards
 
+
+
 	def render(self):
 		if self.render_mode not in ("human", None):
 			return

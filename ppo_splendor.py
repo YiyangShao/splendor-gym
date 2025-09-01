@@ -93,6 +93,10 @@ def main():
 	parser.add_argument("--target-kl", type=float, default=0.02)
 	parser.add_argument("--vclip", type=float, default=0.2)
 	parser.add_argument("--ent-coef-final", type=float, default=0.01)
+	parser.add_argument("--use-dual-step", action="store_true", help="Use DualStepSelfPlayWrapper (legacy)")
+	parser.add_argument("--no-dual-step", dest="use_dual_step", action="store_false", help="Use original SelfPlayWrapper (legacy)")
+	parser.add_argument("--use-dual-player", action="store_true", default=True, help="Use DualStepNativeWrapper (default, recommended)")
+	parser.add_argument("--no-dual-player", dest="use_dual_player", action="store_false", help="Disable native dual-player wrapper")
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -145,14 +149,17 @@ def main():
 	# Create environments
 	if args.self_play:
 		envs = gym.vector.SyncVectorEnv([
-			make_env(int(rng.randint(1e9)), opponent_supplier=opponent_supplier, random_starts=True) 
+			make_env(int(rng.randint(1e9)), opponent_supplier=opponent_supplier, random_starts=True, use_dual_step=args.use_dual_step, use_dual_player=args.use_dual_player) 
 			for _ in range(num_envs)
 		])
 	else:
 		envs = gym.vector.SyncVectorEnv([
-			make_env(int(rng.randint(1e9)), opponent_policy=train_opp)
+			make_env(int(rng.randint(1e9)), opponent_policy=train_opp, use_dual_step=args.use_dual_step, use_dual_player=args.use_dual_player)
 			for _ in range(num_envs)
 		])
+	
+	# Determine if we can use dual_step for better performance
+	use_dual_player_training = args.use_dual_player
 
 	obs = np.zeros((num_envs, OBSERVATION_DIM), dtype=np.int32)
 	masks = np.zeros((num_envs, TOTAL_ACTIONS), dtype=np.int8)
@@ -171,6 +178,19 @@ def main():
 	
 	num_updates = args.total_timesteps // (num_envs * num_steps)
 	global_step = 0
+
+	# Print environment configuration
+	if args.use_dual_player:
+		env_type = "DualStepNativeWrapper"
+		print(f"[env] Using {env_type}")
+		print("[env] Benefits: maximum performance, clean env separation, 2x env.step efficiently combined")
+	else:
+		wrapper_type = "DualStepSelfPlayWrapper" if args.use_dual_step else "SelfPlayWrapper"
+		print(f"[env] Using {wrapper_type}")
+		if args.use_dual_step:
+			print("[env] Benefits: policy consistency, natural rewards, better debugging")
+		else:
+			print("[env] Using legacy wrapper (--no-dual-step)")
 
 	# Initial evaluation for baseline
 	print("Running initial evaluation...")
@@ -203,7 +223,59 @@ def main():
 			with torch.no_grad():
 				action, logprob, entropy, value = agent.get_action_and_value(obs_tensor, mask_tensor)
 			actions = action.cpu().numpy()
-			next_obs, rewards, terms, truncs, infos = envs.step(actions)
+			
+			# Use dual_step for dual-player environments, regular step otherwise
+			if use_dual_player_training:
+				# Call dual_step on each environment in the vector
+				next_obs_list = []
+				rewards_list = []
+				terms_list = []
+				infos_list = []
+				
+				for i, action in enumerate(actions):
+					env = envs.envs[i]
+					if hasattr(env, 'dual_step'):
+						try:
+							agent_obs, agent_reward, opp_obs, opp_reward, done, info = env.dual_step(action)
+							next_obs_list.append(agent_obs)
+							rewards_list.append(agent_reward)
+							terms_list.append(done)
+							infos_list.append(info)
+							
+							# Reset environment if done
+							if done:
+								reset_obs, reset_info = env.reset()
+								# Update the observation for next step
+								next_obs_list[-1] = reset_obs
+								infos_list[-1] = reset_info
+								
+						except RuntimeError as e:
+							if "after episode termination" in str(e):
+								# Environment needs reset
+								reset_obs, reset_info = env.reset()
+								next_obs_list.append(reset_obs)
+								rewards_list.append(0.0)
+								terms_list.append(False)
+								infos_list.append(reset_info)
+							else:
+								raise e
+					else:
+						# Fallback to regular step
+						obs, reward, done, trunc, info = env.step(action)
+						next_obs_list.append(obs)
+						rewards_list.append(reward)
+						terms_list.append(done)
+						infos_list.append(info)
+				
+				next_obs = np.stack(next_obs_list)
+				rewards = np.array(rewards_list)
+				terms = np.array(terms_list)
+				infos = infos_list
+				truncs = np.zeros_like(terms, dtype=bool)
+			else:
+				next_obs, rewards, terms, truncs, infos = envs.step(actions)
+			
+			# Extract action masks
 			if isinstance(infos, dict) and "action_mask" in infos:
 				am = infos["action_mask"]
 				next_masks = am if isinstance(am, np.ndarray) and am.shape == (num_envs, TOTAL_ACTIONS) else np.stack([am[i] for i in range(num_envs)], axis=0)
