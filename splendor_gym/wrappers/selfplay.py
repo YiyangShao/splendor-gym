@@ -40,20 +40,27 @@ class SelfPlayWrapper(gym.Wrapper):
 		return obs, info
 
 	def step(self, action):
-		# Our move
+		# Our move (we are always player 0)
 		obs, reward, term, trunc, info = self.env.step(action)
 		if term or trunc:
-			# Reward already from winner POV; correct perspective: if winner is us, reward=+1 else -1 or 0 for draw
+			# Reward is from player 0 POV: +1 if we win, -1 if we lose, 0 if draw
 			return obs, reward, term, trunc, info
-		# Opponent move
+		
+		# Opponent move (should be player 1's turn)
 		if info.get("to_play", 0) == 1:
 			a = self._opp_policy(obs, info)
 			obs, opp_reward, term, trunc, info = self.env.step(a)
-			# Env reward is already from our (player 0) POV; pass through on terminal, else 0
-			reward = opp_reward if (term or trunc) else 0.0
+			# Reward is from current player's perspective (who just moved)
+			# If game ends, we need to flip the reward since it's from opponent's perspective
+			if term or trunc:
+				# Opponent just moved and got their reward, we need the opposite
+				reward = -opp_reward  # Flip the reward for our perspective
+			else:
+				reward = 0.0
 			return obs, reward, term, trunc, info
-		# Shouldn't happen, but return zero reward
-		return obs, 0.0, term, trunc, info
+		
+		# This should never happen - if not terminal and not opponent's turn, something is wrong
+		raise RuntimeError(f"Invalid state: game not terminal but to_play={info.get('to_play', 'unknown')} (expected 1 for opponent)")
 
 
 def random_opponent(obs, info):

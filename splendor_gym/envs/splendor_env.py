@@ -75,12 +75,44 @@ class SplendorEnv(gym.Env):
 			if w is None and getattr(self.state, "turn_limit_reached", False):
 				reward = -0.1
 			else:
-				reward = 0.0 if w is None else (1.0 if w == self.current_player else -1.0)
+				# Reward from current player's perspective (the one who just moved)
+				current_turn_player = (self.state.to_play - 1) % self.state.num_players
+				reward = 0.0 if w is None else (1.0 if w == current_turn_player else -1.0)
 		mask = np.array(legal_moves(self.state), dtype=np.int8) if not terminated else np.zeros(self.action_space.n, dtype=np.int8)
 		info = {"action_mask": mask, "to_play": self.state.to_play}
 		if terminated and getattr(self.state, "turn_limit_reached", False):
 			info["turn_limit"] = True
+		
+		# Add final rewards for all players when game terminates
+		if terminated:
+			info["final_rewards"] = self.get_final_rewards()
+		
 		return obs, float(reward), bool(terminated), False, info
+
+	def get_final_rewards(self) -> Dict[int, float]:
+		"""Get final rewards for all players when game is terminated.
+		
+		Returns:
+			Dict mapping player_id -> reward (1.0 for winner, -1.0 for loser, 0.0 for draw)
+		"""
+		if not is_terminal(self.state):
+			raise RuntimeError("Cannot get final rewards for non-terminal state")
+		
+		w = winner(self.state)
+		rewards = {}
+		
+		for player_id in range(self.num_players):
+			if w is None:
+				# Draw
+				if getattr(self.state, "turn_limit_reached", False):
+					rewards[player_id] = -0.1  # Draw penalty
+				else:
+					rewards[player_id] = 0.0
+			else:
+				# Win/Loss
+				rewards[player_id] = 1.0 if w == player_id else -1.0
+		
+		return rewards
 
 	def render(self):
 		if self.render_mode not in ("human", None):

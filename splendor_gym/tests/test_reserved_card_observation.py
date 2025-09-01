@@ -277,8 +277,11 @@ def test_buy_reserved_card_removes_from_observation():
     env.state.players[0].tokens[3] = 10  # Give lots of red tokens
     env.state.players[0].tokens[4] = 10  # Give lots of black tokens
     
+    # Regenerate action mask after modifying player state
+    from splendor_gym.engine.rules import legal_moves
+    mask = legal_moves(env.state)
+    
     # Try to buy the reserved card (action 42 is buy reserved slot 0)
-    mask = info['action_mask']
     if mask[42]:  # If can buy reserved card 0
         obs, _, _, _, info = env.step(42)
         # After buying, it's P1's turn - P0 should have 0 reserved cards
