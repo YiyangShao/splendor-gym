@@ -16,6 +16,9 @@ from ..engine import (
 from ..engine.state import TOKEN_COLORS, STANDARD_COLORS
 from ..engine.encode import TOTAL_ACTIONS, OBSERVATION_DIM, encode_observation
 
+# Import for enhanced render formatting  
+from ..scripts.game_logger import SplendorGameLogger
+
 
 class SplendorEnv(gym.Env):
 	metadata = {"render_modes": ["human"], "name": "Splendor-v0"}
@@ -83,10 +86,10 @@ class SplendorEnv(gym.Env):
 		if self.render_mode not in ("human", None):
 			return
 		assert self.state is not None
-		p = self.state.players[self.state.to_play]
-		print(f"Turn {self.state.turn_count} — Player {self.state.to_play}")
-		print(f"Bank: {dict(zip(TOKEN_COLORS, self.state.bank))}")
-		print(f"You: tokens={dict(zip(TOKEN_COLORS, p.tokens))} bonuses={dict(zip(STANDARD_COLORS, p.bonuses))} pp={p.prestige}")  # noqa: E501
+		
+		# Use game logger's compact format
+		logger = SplendorGameLogger()
+		print(logger.format_game_state(self.state))
 
 
 def make(num_players: int = 2, render_mode: str | None = None, seed: int | None = None) -> SplendorEnv:
