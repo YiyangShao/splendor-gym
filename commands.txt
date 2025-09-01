@@ -3,7 +3,7 @@ python -m pip install -e .'[dev]'
 python -m pip install cleanrl==0.4.8 torch tensorboard
 
 # Run tests
-python -m pytest -q
+python -m pytest splendor_gym/tests/ -v
 
 # Quick random rollout smoke
 python -m splendor_gym.scripts.random_rollout --episodes 3
